@@ -4,7 +4,7 @@
 **Этап**: 1
 **US**: US-03
 **Зависимости**: BE-001
-**Статус**: не начата
+**Статус**: выполнена
 
 ## Описание
 
@@ -18,7 +18,7 @@
 
 - `parse_file(path)` — маршрутизация по расширению.
 - `parse_pdf` — PyPDF2; `parse_docx` — python-docx; `parse_md` — чтение как текст.
-- `split_into_chunks(text, chunk_size=800, overlap=100)` — разбиение по предложениям/абзацам с учётом лимитов.
+- `split_into_chunks(text, chunk_size=512, overlap=64)` — разбиение по предложениям/абзацам с учётом лимитов (значения по умолчанию из `RAGConfig`).
 - Возврат: список `{text: str, metadata: dict}`; в metadata — имя файла, `chunk_index`.
 
 ## Критерии готовности
