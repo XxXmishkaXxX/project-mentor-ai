@@ -4,7 +4,7 @@
 **Этап**: 1
 **US**: US-02, US-03, US-07, US-08
 **Зависимости**: BE-108, BE-109
-**Статус**: не начата
+**Статус**: выполнена
 
 ## Описание
 
@@ -12,8 +12,8 @@
 
 ## Файлы
 
-- `backend/src/app/chat/controller.py` — endpoint отсылки сообщения, `StreamingResponse`
-- `backend/src/app/chat/service.py` — сохранение сообщений, вызов pipeline, обновление чата
+- `backend/app/chat/views.py` — endpoint отсылки сообщения, `Stream`
+- `backend/app/chat/manager.py` — сохранение сообщений, вызов pipeline, обновление чата
 
 ## Реализация
 

@@ -17,10 +17,12 @@
           <label for="username">Имя пользователя</label>
           <input
             id="username"
+            ref="usernameInput"
             v-model="form.username"
             type="text"
             placeholder="ivan_petrov"
             :class="{ 'input-error': errors.username }"
+            @blur="validateField('username')"
           >
           <span v-if="errors.username" class="field-error">{{ errors.username }}</span>
         </div>
@@ -33,6 +35,7 @@
             type="email"
             placeholder="you@example.com"
             :class="{ 'input-error': errors.email }"
+            @blur="validateField('email')"
           >
           <span v-if="errors.email" class="field-error">{{ errors.email }}</span>
         </div>
@@ -46,6 +49,7 @@
               :type="showPassword ? 'text' : 'password'"
               placeholder="Минимум 8 символов"
               :class="{ 'input-error': errors.password }"
+              @blur="validateField('password')"
             >
             <button
               type="button"
@@ -66,6 +70,7 @@
             type="password"
             placeholder="Повторите пароль"
             :class="{ 'input-error': errors.confirmPassword }"
+            @blur="validateField('confirmPassword')"
           >
           <span v-if="errors.confirmPassword" class="field-error">{{ errors.confirmPassword }}</span>
         </div>
@@ -91,13 +96,14 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
+const usernameInput = ref(null)
 const form = reactive({
   username: '',
   email: '',
@@ -117,45 +123,65 @@ const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const isFormValid = computed(() =>
   form.username.length >= 3 &&
+  form.username.length <= 50 &&
   emailRegex.test(form.email) &&
   form.password.length >= 8 &&
+  form.confirmPassword &&
   form.password === form.confirmPassword
 )
 
+onMounted(async () => {
+  await nextTick()
+  usernameInput.value?.focus()
+})
+
+function validateField(field) {
+  switch (field) {
+    case 'username':
+      if (!form.username) {
+        errors.username = 'Имя должно быть от 3 до 50 символов'
+      } else if (form.username.length < 3) {
+        errors.username = 'Имя должно быть от 3 до 50 символов'
+      } else if (form.username.length > 50) {
+        errors.username = 'Имя должно быть от 3 до 50 символов'
+      } else {
+        errors.username = ''
+      }
+      break
+    case 'email':
+      if (!form.email) {
+        errors.email = 'Введите корректный email'
+      } else if (!emailRegex.test(form.email)) {
+        errors.email = 'Введите корректный email'
+      } else {
+        errors.email = ''
+      }
+      break
+    case 'password':
+      if (!form.password) {
+        errors.password = 'Пароль должен быть не менее 8 символов'
+      } else if (form.password.length < 8) {
+        errors.password = 'Пароль должен быть не менее 8 символов'
+      } else {
+        errors.password = ''
+      }
+      if (form.confirmPassword) validateField('confirmPassword')
+      break
+    case 'confirmPassword':
+      if (form.password !== form.confirmPassword) {
+        errors.confirmPassword = 'Пароли не совпадают'
+      } else {
+        errors.confirmPassword = ''
+      }
+      break
+  }
+}
+
 function validate() {
-  Object.keys(errors).forEach(k => errors[k] = '')
-  let valid = true
-
-  if (!form.username || form.username.length < 3) {
-    errors.username = 'Минимум 3 символа'
-    valid = false
-  } else if (form.username.length > 50) {
-    errors.username = 'Максимум 50 символов'
-    valid = false
+  for (const field of Object.keys(errors)) {
+    validateField(field)
   }
-
-  if (!form.email) {
-    errors.email = 'Введите email'
-    valid = false
-  } else if (!emailRegex.test(form.email)) {
-    errors.email = 'Некорректный формат email'
-    valid = false
-  }
-
-  if (!form.password) {
-    errors.password = 'Введите пароль'
-    valid = false
-  } else if (form.password.length < 8) {
-    errors.password = 'Минимум 8 символов'
-    valid = false
-  }
-
-  if (form.password !== form.confirmPassword) {
-    errors.confirmPassword = 'Пароли не совпадают'
-    valid = false
-  }
-
-  return valid
+  return Object.values(errors).every(e => !e)
 }
 
 async function handleSubmit() {
@@ -167,7 +193,7 @@ async function handleSubmit() {
     router.push({ name: 'login', query: { registered: '1' } })
   } catch (err) {
     if (err.status === 409) {
-      apiError.value = 'Пользователь с таким email или именем уже существует'
+      apiError.value = err.data?.detail || 'Пользователь с таким email или именем уже существует'
     } else if (err.status === 422 && err.data?.extra) {
       for (const e of err.data.extra) {
         if (errors[e.key] !== undefined) errors[e.key] = e.message
