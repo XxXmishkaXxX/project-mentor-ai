@@ -1,0 +1,567 @@
+openapi: 3.1.0
+info:
+  title: Project Mentor AI API
+  description: >
+    RAG-based AI assistant for students (project management mentoring).
+    Authentication via cookie-based sessions backed by Redis.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8000
+    description: Local development
+
+tags:
+  - name: auth
+    description: Registration, login, logout
+  - name: users
+    description: User profile
+  - name: chats
+    description: Chat CRUD
+  - name: messages
+    description: Message history and SSE streaming
+  - name: health
+    description: Service health checks
+
+paths:
+  /api/health:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Check service health
+      description: >
+        Returns status of all backend dependencies (PostgreSQL, Redis, Qdrant).
+        Qdrant is only checked when RAG pipeline is configured.
+      security: []
+      responses:
+        "200":
+          description: All services healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                pg: ok
+                redis: ok
+                qdrant: ok
+        "503":
+          description: One or more services unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                pg: ok
+                redis: error
+                qdrant: ok
+
+  /api/auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register a new user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "409":
+          description: User with this email or username already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                detail: User with this email or username already exists
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+
+  /api/auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login
+      description: >
+        Authenticates user and sets `session_id` cookie (HttpOnly, Secure, SameSite=lax).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          headers:
+            Set-Cookie:
+              description: "Session cookie: `session_id=<token>; HttpOnly; Secure; SameSite=lax; Path=/; Max-Age=86400`"
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "401":
+          description: Invalid email or password
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                detail: Invalid email or password
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+
+  /api/auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout
+      description: >
+        Clears session from Redis and removes `session_id` cookie.
+        Does not require authentication — if cookie is absent, the endpoint still returns 200.
+      security: []
+      responses:
+        "200":
+          description: Logged out
+          headers:
+            Set-Cookie:
+              description: "Clears session cookie: `session_id=; Max-Age=0`"
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogoutResponse"
+
+  /api/users/me:
+    get:
+      operationId: getCurrentUser
+      tags: [users]
+      summary: Get current user profile
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/chats/:
+    get:
+      operationId: listChats
+      tags: [chats]
+      summary: List user's chats
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: List of chats
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChatResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      operationId: createChat
+      tags: [chats]
+      summary: Create a new chat
+      security:
+        - cookieAuth: []
+      responses:
+        "201":
+          description: Chat created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/chats/{chat_id}:
+    parameters:
+      - $ref: "#/components/parameters/ChatId"
+
+    get:
+      operationId: getChat
+      tags: [chats]
+      summary: Get chat metadata
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Chat metadata (without messages)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/ChatNotFound"
+
+    delete:
+      operationId: deleteChat
+      tags: [chats]
+      summary: Delete a chat
+      security:
+        - cookieAuth: []
+      responses:
+        "204":
+          description: Chat deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/ChatNotFound"
+
+  /api/chats/{chat_id}/messages:
+    parameters:
+      - $ref: "#/components/parameters/ChatId"
+
+    get:
+      operationId: getMessages
+      tags: [messages]
+      summary: Get message history (paginated)
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 10000
+            default: 0
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        "200":
+          description: Paginated message list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/ChatNotFound"
+
+    post:
+      operationId: sendMessage
+      tags: [messages]
+      summary: Send a message and receive AI response via SSE
+      description: >
+        Saves the user message, triggers RAG pipeline, and streams the assistant's
+        response as Server-Sent Events. The assistant message is persisted automatically
+        after the stream completes.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMessageRequest"
+      responses:
+        "200":
+          description: SSE stream with AI response
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: >
+                  Server-Sent Events stream. Event types:
+
+                  - `token` — partial text chunk: `{"text": "..."}`
+
+                  - `sources` — retrieved documents: `{"sources": [{"document_title": "...", "chunk_text": "...", "score": 0.92}]}`
+
+                  - `error` — error message (plain text)
+
+                  - `done` — stream finished: `{"message_id": "uuid"}` or empty
+              examples:
+                sse_stream:
+                  summary: Typical SSE stream
+                  value: |
+                    event: token
+                    data: {"text": "Sprint"}
+
+                    event: token
+                    data: {"text": " Backlog — это"}
+
+                    event: sources
+                    data: {"sources": [{"document_title": "PMBOK Guide", "chunk_text": "Sprint backlog...", "score": 0.92}]}
+
+                    event: done
+                    data: {"message_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"}
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/ChatNotFound"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: session_id
+      description: Redis-backed session cookie (HttpOnly, Secure, SameSite=lax, 24h TTL)
+
+  parameters:
+    ChatId:
+      name: chat_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Chat UUID
+
+  responses:
+    Unauthorized:
+      description: Not authenticated — session cookie missing or expired
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            detail: Not authenticated
+
+    ChatNotFound:
+      description: Chat not found or belongs to another user
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            detail: Chat not found
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: string
+          description: Human-readable error description
+      example:
+        detail: Internal server error
+
+    ValidationErrorResponse:
+      type: object
+      properties:
+        status_code:
+          type: integer
+          example: 400
+        detail:
+          type: string
+          example: Validation failed
+        extra:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+              message:
+                type: string
+
+    LogoutResponse:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: string
+          example: Logged out
+
+    RegisterRequest:
+      type: object
+      required: [username, email, password]
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+          example: ivan_petrov
+        email:
+          type: string
+          format: email
+          example: ivan@example.com
+        password:
+          type: string
+          minLength: 8
+          format: password
+          example: securePass123
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: ivan@example.com
+        password:
+          type: string
+          format: password
+          example: securePass123
+
+    UserResponse:
+      type: object
+      required: [id, username, email, role]
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+        username:
+          type: string
+          example: ivan_petrov
+        email:
+          type: string
+          format: email
+          example: ivan@example.com
+        role:
+          $ref: "#/components/schemas/UserRole"
+
+    UserRole:
+      type: string
+      enum: [student, admin]
+      example: student
+
+    ChatResponse:
+      type: object
+      required: [id, title, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+        title:
+          type: string
+          nullable: true
+          example: Как составить ТЗ?
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-05-03T12:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-05-03T12:05:00Z"
+
+    SendMessageRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 5000
+          example: Как составить техническое задание для проекта?
+
+    MessageResponse:
+      type: object
+      required: [id, role, content, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        role:
+          type: string
+          enum: [user, assistant, system]
+          example: assistant
+        content:
+          type: string
+          example: >
+            Техническое задание (ТЗ) — это документ, который описывает требования к проекту...
+        sources:
+          type: array
+          nullable: true
+          items:
+            $ref: "#/components/schemas/Source"
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-05-03T12:01:00Z"
+
+    MessageListResponse:
+      type: object
+      required: [messages, total]
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/MessageResponse"
+        total:
+          type: integer
+          description: Total number of messages in the chat
+          example: 42
+
+    Source:
+      type: object
+      properties:
+        document_title:
+          type: string
+          example: PMBOK Guide
+        chunk_text:
+          type: string
+          example: Sprint backlog — это список задач...
+        score:
+          type: number
+          format: float
+          example: 0.92
+
+    HealthResponse:
+      type: object
+      properties:
+        pg:
+          type: string
+          enum: [ok, error]
+        redis:
+          type: string
+          enum: [ok, error]
+        qdrant:
+          type: string
+          enum: [ok, error]
+          description: Present only when RAG pipeline is configured
+      required: [pg, redis]
