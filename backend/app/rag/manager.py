@@ -3,6 +3,7 @@ from collections.abc import AsyncGenerator
 
 from app.base.manager import BaseManager
 from app.common.config import StaticConfig
+from app.common.sse import sse_event
 from app.rag.accessors.retriever import SearchResult
 from app.rag.config import RAGConfig
 
@@ -25,8 +26,8 @@ class RAGManager(BaseManager):
             query_vector = await self.store.embedder.embed_text(question)
         except Exception:
             self.logger.exception("failed to embed question")
-            yield _sse_event("error", "Ошибка при обработке вопроса.")
-            yield _sse_event("done", "")
+            yield sse_event("error", "Ошибка при обработке вопроса.")
+            yield sse_event("done", "")
             return
 
         rag_cfg = self._rag_config()
@@ -39,18 +40,18 @@ class RAGManager(BaseManager):
             )
         except Exception:
             self.logger.exception("failed to search in qdrant")
-            yield _sse_event("error", "Ошибка при поиске в базе знаний.")
-            yield _sse_event("done", "")
+            yield sse_event("error", "Ошибка при поиске в базе знаний.")
+            yield sse_event("done", "")
             return
 
         if not results:
-            yield _sse_event(
+            yield sse_event(
                 "no_data",
                 "К сожалению, в базе знаний нет информации "
                 "для ответа на этот вопрос. "
                 "Попробуйте переформулировать вопрос.",
             )
-            yield _sse_event("done", "")
+            yield sse_event("done", "")
             return
 
         context = _build_context(results)
@@ -58,11 +59,11 @@ class RAGManager(BaseManager):
 
         try:
             async for token in self.store.llm.stream_completion(messages):
-                yield _sse_event("token", token)
+                yield sse_event("token", token)
         except Exception:
             self.logger.exception("failed during LLM streaming")
-            yield _sse_event("error", "Ошибка при генерации ответа.")
-            yield _sse_event("done", "")
+            yield sse_event("error", "Ошибка при генерации ответа.")
+            yield sse_event("done", "")
             return
 
         sources = [
@@ -73,8 +74,8 @@ class RAGManager(BaseManager):
             }
             for r in results
         ]
-        yield _sse_event("sources", json.dumps(sources, ensure_ascii=False))
-        yield _sse_event("done", "")
+        yield sse_event("sources", json.dumps(sources, ensure_ascii=False))
+        yield sse_event("done", "")
 
 
 def _build_context(results: list[SearchResult]) -> str:
@@ -106,7 +107,3 @@ def _build_messages(
 
     messages.append({"role": "user", "content": question})
     return messages
-
-
-def _sse_event(event: str, data: str) -> str:
-    return f"event: {event}\ndata: {data}\n\n"
