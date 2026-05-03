@@ -167,15 +167,15 @@ class RetrieverAccessor(BaseAccessor):
             else self._rag_config.score_threshold
         )
 
-        results = await self._client.search(  # type: ignore[attr-defined]
+        response = await self._client.query_points(
             collection_name=StaticConfig.QDRANT_COLLECTION_NAME,
-            query_vector=query_vector,
+            query=query_vector,
             limit=k,
             score_threshold=threshold,
         )
 
         search_results: list[SearchResult] = []
-        for hit in results:
+        for hit in response.points:
             payload = hit.payload or {}
             document_id = payload.get("document_id")
             content = payload.get("content")
