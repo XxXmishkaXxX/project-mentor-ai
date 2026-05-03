@@ -5,8 +5,9 @@ from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from app.store.pg import Base, get_engine
+import app.chat.db  # noqa: F401  — register ORM models for autogenerate
 import app.users.db  # noqa: F401  — register ORM models for autogenerate
+from app.store.pg import Base, get_engine
 
 config = context.config
 

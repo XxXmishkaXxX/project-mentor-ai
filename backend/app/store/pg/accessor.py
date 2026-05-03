@@ -43,7 +43,9 @@ class PgAccessor(BaseAccessor):
 
     async def execute(self, stmt: Any) -> Any:
         async with self.session() as session:
-            return await session.execute(stmt)
+            result = await session.execute(stmt)
+            await session.commit()
+            return result
 
     async def scalar_one_or_none(self, stmt: Any) -> Any:
         async with self.session() as session:
