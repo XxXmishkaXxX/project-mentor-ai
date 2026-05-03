@@ -95,6 +95,8 @@ paths:
       summary: Login
       description: >
         Authenticates user and sets `session_id` cookie (HttpOnly, Secure, SameSite=lax).
+        Internally returns `LoginResponse` (session_id + user), but only `UserResponse`
+        is sent in the response body — `session_id` goes into the Set-Cookie header.
       security: []
       requestBody:
         required: true
@@ -103,11 +105,13 @@ paths:
             schema:
               $ref: "#/components/schemas/LoginRequest"
       responses:
-        "200":
+        "201":
           description: Login successful
           headers:
             Set-Cookie:
-              description: "Session cookie: `session_id=<token>; HttpOnly; Secure; SameSite=lax; Path=/; Max-Age=86400`"
+              description: >
+                Session cookie: `session_id=<token>; HttpOnly; Secure;
+                SameSite=lax; Path=/; Max-Age=86400`
               schema:
                 type: string
           content:
@@ -136,10 +140,11 @@ paths:
       summary: Logout
       description: >
         Clears session from Redis and removes `session_id` cookie.
-        Does not require authentication — if cookie is absent, the endpoint still returns 200.
+        Does not require authentication — if cookie is absent,
+        the endpoint still returns 201.
       security: []
       responses:
-        "200":
+        "201":
           description: Logged out
           headers:
             Set-Cookie:
@@ -167,6 +172,14 @@ paths:
                 $ref: "#/components/schemas/UserResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: User not found (deleted after session was created)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                detail: User not found
 
   /api/chats/:
     get:
@@ -283,9 +296,9 @@ paths:
       tags: [messages]
       summary: Send a message and receive AI response via SSE
       description: >
-        Saves the user message, triggers RAG pipeline, and streams the assistant's
-        response as Server-Sent Events. The assistant message is persisted automatically
-        after the stream completes.
+        Saves the user message, triggers RAG pipeline, and streams the
+        assistant's response as Server-Sent Events. The assistant message
+        is persisted automatically after the stream completes.
       security:
         - cookieAuth: []
       requestBody:
@@ -295,37 +308,71 @@ paths:
             schema:
               $ref: "#/components/schemas/SendMessageRequest"
       responses:
-        "200":
+        "201":
           description: SSE stream with AI response
           content:
             text/event-stream:
               schema:
                 type: string
                 description: >
-                  Server-Sent Events stream. Event types:
+                  Server-Sent Events stream. Event types defined by
+                  `SSEEventType` enum:
 
-                  - `token` — partial text chunk: `{"text": "..."}`
 
-                  - `sources` — retrieved documents: `{"sources": [{"document_title": "...", "chunk_text": "...", "score": 0.92}]}`
+                  - `token` — plain text chunk of the AI answer
 
-                  - `error` — error message (plain text)
 
-                  - `done` — stream finished: `{"message_id": "uuid"}` or empty
+                  - `sources` — JSON array of retrieved documents
+                    (see Source schema)
+
+
+                  - `error` — plain-text error message (Russian)
+
+
+                  - `no_data` — no relevant data found in knowledge base
+                    (plain-text message)
+
+
+                  - `done` — stream finished (empty data)
               examples:
-                sse_stream:
-                  summary: Typical SSE stream
+                successful_stream:
+                  summary: Successful RAG response
                   value: |
                     event: token
-                    data: {"text": "Sprint"}
+                    data: Sprint
 
                     event: token
-                    data: {"text": " Backlog — это"}
+                    data:  Backlog — это
 
                     event: sources
-                    data: {"sources": [{"document_title": "PMBOK Guide", "chunk_text": "Sprint backlog...", "score": 0.92}]}
+                    data: [{"document_title":"PMBOK Guide","content":"Sprint backlog...","score":0.92}]
 
                     event: done
-                    data: {"message_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"}
+                    data:
+                no_data_stream:
+                  summary: No relevant knowledge found
+                  value: |
+                    event: no_data
+                    data: К сожалению, в базе знаний нет информации для ответа на этот вопрос. Попробуйте переформулировать вопрос.
+
+                    event: done
+                    data:
+                error_stream:
+                  summary: Embedding/LLM failure
+                  value: |
+                    event: error
+                    data: Ошибка при генерации ответа.
+
+                    event: done
+                    data:
+                rag_unavailable:
+                  summary: RAG pipeline not configured
+                  value: |
+                    event: error
+                    data: RAG pipeline не настроен. Обратитесь к администратору.
+
+                    event: done
+                    data:
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -343,7 +390,9 @@ components:
       type: apiKey
       in: cookie
       name: session_id
-      description: Redis-backed session cookie (HttpOnly, Secure, SameSite=lax, 24h TTL)
+      description: >
+        Redis-backed session cookie
+        (HttpOnly, Secure, SameSite=lax, 24h TTL)
 
   parameters:
     ChatId:
@@ -375,6 +424,27 @@ components:
             detail: Chat not found
 
   schemas:
+    # ── Enums ──────────────────────────────────────────────
+
+    UserRole:
+      type: string
+      enum: [student, admin]
+      example: student
+
+    MessageRole:
+      type: string
+      enum: [user, assistant, system]
+      example: assistant
+
+    SSEEventType:
+      type: string
+      enum: [token, error, sources, done, no_data]
+      description: >
+        Server-Sent Event types emitted by the streaming endpoint.
+      example: token
+
+    # ── Error schemas ──────────────────────────────────────
+
     ErrorResponse:
       type: object
       required: [detail]
@@ -404,13 +474,7 @@ components:
               message:
                 type: string
 
-    LogoutResponse:
-      type: object
-      required: [detail]
-      properties:
-        detail:
-          type: string
-          example: Logged out
+    # ── Auth schemas ───────────────────────────────────────
 
     RegisterRequest:
       type: object
@@ -444,6 +508,30 @@ components:
           format: password
           example: securePass123
 
+    LoginResponse:
+      type: object
+      description: >
+        Internal manager return type. The `session_id` is set as
+        an HttpOnly cookie; only `user` is sent in the response body.
+      required: [session_id, user]
+      properties:
+        session_id:
+          type: string
+          description: Opaque session token (goes into Set-Cookie header)
+          example: abc123def456
+        user:
+          $ref: "#/components/schemas/UserResponse"
+
+    LogoutResponse:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: string
+          example: Logged out
+
+    # ── User schemas ───────────────────────────────────────
+
     UserResponse:
       type: object
       required: [id, username, email, role]
@@ -462,10 +550,7 @@ components:
         role:
           $ref: "#/components/schemas/UserRole"
 
-    UserRole:
-      type: string
-      enum: [student, admin]
-      example: student
+    # ── Chat schemas ───────────────────────────────────────
 
     ChatResponse:
       type: object
@@ -488,6 +573,8 @@ components:
           format: date-time
           example: "2026-05-03T12:05:00Z"
 
+    # ── Message schemas ────────────────────────────────────
+
     SendMessageRequest:
       type: object
       required: [content]
@@ -507,13 +594,12 @@ components:
           format: uuid
           example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
         role:
-          type: string
-          enum: [user, assistant, system]
-          example: assistant
+          $ref: "#/components/schemas/MessageRole"
         content:
           type: string
           example: >
-            Техническое задание (ТЗ) — это документ, который описывает требования к проекту...
+            Техническое задание (ТЗ) — это документ,
+            который описывает требования к проекту...
         sources:
           type: array
           nullable: true
@@ -539,20 +625,26 @@ components:
 
     Source:
       type: object
+      required: [document_title, content, score]
       properties:
         document_title:
           type: string
           example: PMBOK Guide
-        chunk_text:
+        content:
           type: string
+          description: First 200 chars of the matching chunk
           example: Sprint backlog — это список задач...
         score:
           type: number
           format: float
+          description: Relevance score (0–1), rounded to 3 decimals
           example: 0.92
+
+    # ── Health schemas ─────────────────────────────────────
 
     HealthResponse:
       type: object
+      required: [pg, redis]
       properties:
         pg:
           type: string
@@ -564,4 +656,3 @@ components:
           type: string
           enum: [ok, error]
           description: Present only when RAG pipeline is configured
-      required: [pg, redis]
