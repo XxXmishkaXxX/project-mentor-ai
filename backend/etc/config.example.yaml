@@ -19,11 +19,11 @@ qdrant:
   host: localhost
   port: 6333
 
-qwen:
+llm:
   api_key: ""
-  api_base_url: ""
-  model: "qwen-3.6"
-  embedding_model: "qwen-embedding"
+  api_base_url: ""  # e.g. https://openrouter.ai/api/v1
+  model: ""          # e.g. qwen/qwen3-235b-a22b
+  embedding_model: "" # e.g. qwen/qwen3-235b-a22b
 
 rag:
   top_k: 5

@@ -5,12 +5,12 @@ import httpx
 
 from app.base.http_accessor import BaseHttpAccessor
 from app.common.config import StaticConfig
-from app.rag.config import QwenConfig
+from app.rag.config import LLMProviderConfig
 
 
 class LLMAccessor(BaseHttpAccessor):
     async def connect(self) -> None:
-        config = QwenConfig.from_settings(self.store.settings.config)
+        config = LLMProviderConfig.from_settings(self.store.settings.config)
         self._config = config
         await self._init_client(
             base_url=config.api_base_url,

@@ -30,7 +30,7 @@ KB_DIR = PROJECT_ROOT / "knowledge_base"
 async def _seed(store: Store) -> None:
     if not store.is_rag_available:
         logger.error(
-            "RAG is not configured (qwen.api_base_url is empty). "
+            "RAG is not configured (llm.api_base_url is empty). "
             "Cannot embed documents.",
         )
         sys.exit(1)

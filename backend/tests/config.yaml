@@ -17,11 +17,11 @@ qdrant:
   host: localhost
   port: 6333
 
-qwen:
+llm:
   api_key: "test-key"
-  api_base_url: "http://fake-qwen:8000"
-  model: "qwen-test"
-  embedding_model: "qwen-embedding-test"
+  api_base_url: "http://fake-llm:8000"
+  model: "test-model"
+  embedding_model: "test-embedding-model"
 
 rag:
   top_k: 3

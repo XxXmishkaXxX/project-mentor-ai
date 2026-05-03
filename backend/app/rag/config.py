@@ -20,23 +20,23 @@ class QdrantConfig:
 
 
 @dataclass
-class QwenConfig:
+class LLMProviderConfig:
     api_key: str = ""
     api_base_url: str = ""
-    model: str = "qwen-3.6"
-    embedding_model: str = "qwen-embedding"
+    model: str = ""
+    embedding_model: str = ""
 
     @classmethod
-    def from_settings(cls, config: dict) -> "QwenConfig":
+    def from_settings(cls, config: dict) -> "LLMProviderConfig":
         return cls(
-            api_key=path(config, "qwen", "api_key", default=""),
-            api_base_url=path(config, "qwen", "api_base_url", default=""),
-            model=path(config, "qwen", "model", default="qwen-3.6"),
+            api_key=path(config, "llm", "api_key", default=""),
+            api_base_url=path(config, "llm", "api_base_url", default=""),
+            model=path(config, "llm", "model", default=""),
             embedding_model=path(
                 config,
-                "qwen",
+                "llm",
                 "embedding_model",
-                default="qwen-embedding",
+                default="",
             ),
         )
 
@@ -65,5 +65,5 @@ class RAGConfig:
 
 
 def is_rag_configured(config: dict[str, Any]) -> bool:
-    """Check whether Qwen API base URL is set (minimum for RAG to work)."""
-    return bool(path(config, "qwen", "api_base_url", default=""))
+    """Check whether LLM API base URL is set (minimum for RAG to work)."""
+    return bool(path(config, "llm", "api_base_url", default=""))

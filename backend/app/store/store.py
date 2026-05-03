@@ -45,7 +45,7 @@ class Store:
             self.rag_manager = RAGManager(self)
         else:
             self._logger.warning(
-                "RAG not configured — qwen.api_base_url is empty, "
+                "RAG not configured — llm.api_base_url is empty, "
                 "skipping RAG accessors",
             )
 
