@@ -27,7 +27,7 @@ qwen:
 
 rag:
   top_k: 5
-  score_threshold: 0.7
+  score_threshold: 0.1
   chunk_size: 512
   chunk_overlap: 64
 

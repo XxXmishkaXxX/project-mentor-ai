@@ -44,7 +44,7 @@ class QwenConfig:
 @dataclass
 class RAGConfig:
     top_k: int = 5
-    score_threshold: float = 0.7
+    score_threshold: float = 0.15
     chunk_size: int = 512
     chunk_overlap: int = 64
 
@@ -53,7 +53,7 @@ class RAGConfig:
         return cls(
             top_k=int(path(config, "rag", "top_k", default=5)),
             score_threshold=float(
-                path(config, "rag", "score_threshold", default=0.7),
+                path(config, "rag", "score_threshold", default=0.15),
             ),
             chunk_size=int(
                 path(config, "rag", "chunk_size", default=512),

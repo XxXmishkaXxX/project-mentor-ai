@@ -132,10 +132,15 @@ class BaseHttpAccessor(BaseAccessor):
                     StaticConfig.HTTP_BASE_RETRY_DELAY * (2 ** (attempt - 1)),
                 )
             except httpx.HTTPStatusError as exc:
+                try:
+                    await exc.response.aread()
+                    body = exc.response.text
+                except Exception:
+                    body = "<could not read response body>"
                 self.logger.error(
                     "stream HTTP error",
                     status=exc.response.status_code,
-                    body=exc.response.text,
+                    body=body,
                 )
                 raise
 
