@@ -9,6 +9,7 @@ export const useChatStore = defineStore('chat', () => {
   const isStreaming = ref(false)
   const isLoadingChats = ref(false)
   const isLoadingMessages = ref(false)
+  const messagesTotal = ref(0)
 
   const currentChat = computed(() =>
     chats.value.find(c => c.id === currentChatId.value) || null
@@ -23,11 +24,12 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  async function createChat(title = null) {
-    const chat = await chatApi.createChat(title)
+  async function createChat() {
+    const chat = await chatApi.createChat()
     chats.value.unshift(chat)
     currentChatId.value = chat.id
     messages.value = []
+    messagesTotal.value = 0
     return chat
   }
 
@@ -37,17 +39,31 @@ export const useChatStore = defineStore('chat', () => {
     if (currentChatId.value === chatId) {
       currentChatId.value = null
       messages.value = []
+      messagesTotal.value = 0
     }
   }
 
-  async function fetchMessages(chatId) {
+  async function selectChat(chatId) {
+    currentChatId.value = chatId
+    await fetchMessages(chatId)
+  }
+
+  async function fetchMessages(chatId, offset = 0, limit = 50) {
     isLoadingMessages.value = true
     try {
-      messages.value = await chatApi.getMessages(chatId)
+      const data = await chatApi.getMessages(chatId, offset, limit)
+      messages.value = data.messages || []
+      messagesTotal.value = data.total || 0
       currentChatId.value = chatId
     } finally {
       isLoadingMessages.value = false
     }
+  }
+
+  function clearCurrentChat() {
+    currentChatId.value = null
+    messages.value = []
+    messagesTotal.value = 0
   }
 
   async function sendMessage(content) {
@@ -55,29 +71,62 @@ export const useChatStore = defineStore('chat', () => {
 
     const userMessage = {
       id: `temp-${Date.now()}`,
-      chat_id: currentChatId.value,
       role: 'user',
       content,
+      sources: null,
       created_at: new Date().toISOString(),
     }
     messages.value.push(userMessage)
 
-    const assistantMessage = {
+    messages.value.push({
       id: `temp-assistant-${Date.now()}`,
-      chat_id: currentChatId.value,
       role: 'assistant',
       content: '',
-      sources: [],
+      sources: null,
       created_at: new Date().toISOString(),
-    }
-    messages.value.push(assistantMessage)
+    })
+
+    const assistantMessage = messages.value[messages.value.length - 1]
 
     isStreaming.value = true
     try {
-      const response = await chatApi.sendMessage(currentChatId.value, content)
+      const response = await chatApi.sendMessageStream(currentChatId.value, content)
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
+
+      let eventType = null
+      let dataLines = []
+
+      function dispatchEvent() {
+        if (!eventType || dataLines.length === 0) {
+          eventType = null
+          dataLines = []
+          return
+        }
+        const data = dataLines.join('\n')
+        dataLines = []
+
+        if (eventType === 'token') {
+          assistantMessage.content += data
+        } else if (eventType === 'sources') {
+          try {
+            const parsed = JSON.parse(data)
+            assistantMessage.sources = Array.isArray(parsed) ? parsed : parsed.sources || []
+          } catch { /* skip malformed sources */ }
+        } else if (eventType === 'done') {
+          if (data) {
+            try {
+              const parsed = JSON.parse(data)
+              if (parsed.message_id) assistantMessage.id = parsed.message_id
+            } catch { /* done without JSON payload */ }
+          }
+        } else if (eventType === 'error' || eventType === 'no_data') {
+          assistantMessage.content += data || ''
+        }
+
+        eventType = null
+      }
 
       while (true) {
         const { done, value } = await reader.read()
@@ -88,36 +137,33 @@ export const useChatStore = defineStore('chat', () => {
         buffer = lines.pop() || ''
 
         for (const line of lines) {
-          if (!line.startsWith('data: ')) continue
-          const data = line.slice(6).trim()
-          if (!data) continue
+          const trimmed = line.trim()
 
-          try {
-            const event = JSON.parse(data)
-            if (event.type === 'token') {
-              assistantMessage.content += event.content
-            } else if (event.type === 'sources') {
-              assistantMessage.sources = event.sources
-            } else if (event.type === 'done') {
-              if (event.message_id) {
-                assistantMessage.id = event.message_id
-              }
-              if (event.user_message_id) {
-                userMessage.id = event.user_message_id
-              }
-            }
-          } catch {
-            // skip malformed events
+          if (!trimmed) {
+            dispatchEvent()
+            continue
+          }
+
+          if (trimmed.startsWith('event:')) {
+            eventType = trimmed.slice(6).trim()
+            continue
+          }
+
+          if (trimmed.startsWith('data:')) {
+            dataLines.push(trimmed.slice(5).trimStart())
           }
         }
       }
+      dispatchEvent()
+    } catch (err) {
+      const lastMsg = messages.value[messages.value.length - 1]
+      if (lastMsg?.role === 'assistant' && !lastMsg.content) {
+        lastMsg.content = 'Произошла ошибка при получении ответа. Попробуйте ещё раз.'
+      }
+      console.error('Stream error:', err)
     } finally {
       isStreaming.value = false
     }
-  }
-
-  function setCurrentChat(chatId) {
-    currentChatId.value = chatId
   }
 
   return {
@@ -125,14 +171,16 @@ export const useChatStore = defineStore('chat', () => {
     currentChatId,
     currentChat,
     messages,
+    messagesTotal,
     isStreaming,
     isLoadingChats,
     isLoadingMessages,
     fetchChats,
     createChat,
     deleteChat,
+    selectChat,
     fetchMessages,
+    clearCurrentChat,
     sendMessage,
-    setCurrentChat,
   }
 })
