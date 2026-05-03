@@ -20,7 +20,7 @@ def autodiscover_commands(
         for attr_name in dir(mod):
             attr = getattr(mod, attr_name)
             if (
-                isinstance(attr, click.BaseCommand)
+                isinstance(attr, click.BaseCommand)  # type: ignore[arg-type]
                 and attr is not group
                 and attr.name not in (group.commands or {})
             ):

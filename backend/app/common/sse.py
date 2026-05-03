@@ -1,9 +1,27 @@
-def sse_event(event: str, data: str) -> str:
+from dataclasses import dataclass
+from enum import StrEnum
+
+
+class SSEEventType(StrEnum):
+    TOKEN = "token"  # noqa: S105
+    ERROR = "error"
+    SOURCES = "sources"
+    DONE = "done"
+    NO_DATA = "no_data"
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedSSE:
+    event: SSEEventType
+    data: str
+
+
+def sse_event(event: SSEEventType, data: str) -> str:
     data_lines = "\n".join(f"data: {line}" for line in data.split("\n"))
     return f"event: {event}\n{data_lines}\n\n"
 
 
-def parse_sse(raw: str) -> tuple[str, str] | None:
+def parse_sse(raw: str) -> ParsedSSE | None:
     event_type = None
     data_parts: list[str] = []
     for line in raw.strip().splitlines():
@@ -13,6 +31,12 @@ def parse_sse(raw: str) -> tuple[str, str] | None:
             data_parts.append(line[6:])
         elif line == "data:":
             data_parts.append("")
-    if event_type is not None and data_parts:
-        return event_type, "\n".join(data_parts)
-    return None
+    if event_type is None or not data_parts:
+        return None
+    try:
+        return ParsedSSE(
+            event=SSEEventType(event_type),
+            data="\n".join(data_parts),
+        )
+    except ValueError:
+        return None

@@ -5,7 +5,7 @@ import pytest
 
 from app.chat.exceptions import ChatNotFoundError
 from app.chat.manager import ChatManager
-from app.common.sse import parse_sse, sse_event
+from app.common.sse import SSEEventType, parse_sse, sse_event
 
 
 @pytest.fixture
@@ -32,7 +32,7 @@ class TestGetOwnChat:
         chat_manager: ChatManager,
         mock_store: MagicMock,
     ):
-        mock_store.chat_accessor.get_chat_by_id = AsyncMock(
+        mock_store.chat_accessor.get_chat_by_owner = AsyncMock(
             return_value=None,
         )
 
@@ -44,16 +44,15 @@ class TestGetOwnChat:
         chat_manager: ChatManager,
         mock_store: MagicMock,
     ):
-        owner_id = uuid.uuid4()
-        other_id = uuid.uuid4()
-        chat = _make_chat(owner_id)
-
-        mock_store.chat_accessor.get_chat_by_id = AsyncMock(
-            return_value=chat,
+        mock_store.chat_accessor.get_chat_by_owner = AsyncMock(
+            return_value=None,
         )
 
         with pytest.raises(ChatNotFoundError):
-            await chat_manager._get_own_chat(chat.id, other_id)
+            await chat_manager._get_own_chat(
+                uuid.uuid4(),
+                uuid.uuid4(),
+            )
 
     async def test_success(
         self,
@@ -63,7 +62,7 @@ class TestGetOwnChat:
         user_id = uuid.uuid4()
         chat = _make_chat(user_id)
 
-        mock_store.chat_accessor.get_chat_by_id = AsyncMock(
+        mock_store.chat_accessor.get_chat_by_owner = AsyncMock(
             return_value=chat,
         )
 
@@ -95,7 +94,7 @@ class TestSendMessageNoRAG:
     ):
         user_id = uuid.uuid4()
         chat = _make_chat(user_id)
-        mock_store.chat_accessor.get_chat_by_id = AsyncMock(
+        mock_store.chat_accessor.get_chat_by_owner = AsyncMock(
             return_value=chat,
         )
         mock_store.chat_accessor.add_message = AsyncMock()
@@ -117,5 +116,5 @@ class TestSendMessageNoRAG:
             if parsed:
                 parsed_events.append(parsed)
 
-        assert parsed_events[0][0] == "error"
-        assert sse_event("done", "") in raw_events
+        assert parsed_events[0].event == SSEEventType.ERROR
+        assert sse_event(SSEEventType.DONE, "") in raw_events

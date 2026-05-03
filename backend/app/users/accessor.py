@@ -1,11 +1,11 @@
 import uuid
 
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.base.accessor import BaseAccessor
 from app.users.db import UserModel
-from app.users.exceptions import UserAlreadyExistsError
+from app.users.domain.models import User
 
 
 class UserAccessor(BaseAccessor):
@@ -15,25 +15,30 @@ class UserAccessor(BaseAccessor):
         username: str,
         email: str,
         password_hash: str,
-    ) -> UserModel:
-        user = UserModel(
-            username=username,
-            email=email,
-            password_hash=password_hash,
+    ) -> User | None:
+        stmt = (
+            pg_insert(UserModel)
+            .values(
+                username=username,
+                email=email,
+                password_hash=password_hash,
+            )
+            .on_conflict_do_nothing()
+            .returning(UserModel)
         )
-        try:
-            return await self.store.pg.add_one(user)
-        except IntegrityError:
-            raise UserAlreadyExistsError() from None
+        row = await self.store.pg.scalar_one_or_none(stmt)
+        return User.from_db(row) if row else None
 
-    async def get_by_email(self, email: str) -> UserModel | None:
-        return await self.store.pg.scalar_one_or_none(
+    async def get_by_email(self, email: str) -> User | None:
+        row = await self.store.pg.scalar_one_or_none(
             select(UserModel).where(UserModel.email == email),
         )
+        return User.from_db(row) if row else None
 
-    async def get_by_id(self, user_id: uuid.UUID | str) -> UserModel | None:
+    async def get_by_id(self, user_id: uuid.UUID | str) -> User | None:
         if isinstance(user_id, str):
             user_id = uuid.UUID(user_id)
-        return await self.store.pg.scalar_one_or_none(
+        row = await self.store.pg.scalar_one_or_none(
             select(UserModel).where(UserModel.id == user_id),
         )
+        return User.from_db(row) if row else None

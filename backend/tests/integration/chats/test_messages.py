@@ -1,6 +1,7 @@
 from litestar.testing import AsyncTestClient
 
-from app.chat.db import ChatModel
+from app.chat.domain.enums import MessageRole
+from app.chat.domain.models import Chat
 from app.store.store import Store
 
 
@@ -8,7 +9,7 @@ class TestGetMessages:
     async def test_empty(
         self,
         authorized_client: AsyncTestClient,
-        chat: ChatModel,
+        chat: Chat,
     ):
         resp = await authorized_client.get(
             f"/api/chats/{chat.id}/messages",
@@ -21,17 +22,17 @@ class TestGetMessages:
     async def test_returns_messages(
         self,
         authorized_client: AsyncTestClient,
-        chat: ChatModel,
+        chat: Chat,
         store: Store,
     ):
         await store.chat_accessor.add_message(
             chat_id=chat.id,
-            role="user",
+            role=MessageRole.USER,
             content="Hello!",
         )
         await store.chat_accessor.add_message(
             chat_id=chat.id,
-            role="assistant",
+            role=MessageRole.ASSISTANT,
             content="Hi there!",
         )
 
@@ -49,13 +50,13 @@ class TestGetMessages:
     async def test_pagination(
         self,
         authorized_client: AsyncTestClient,
-        chat: ChatModel,
+        chat: Chat,
         store: Store,
     ):
         for i in range(5):
             await store.chat_accessor.add_message(
                 chat_id=chat.id,
-                role="user",
+                role=MessageRole.USER,
                 content=f"Message {i}",
             )
 
@@ -79,7 +80,7 @@ class TestGetMessages:
     async def test_unauthorized(
         self,
         client: AsyncTestClient,
-        chat: ChatModel,
+        chat: Chat,
     ):
         resp = await client.get(f"/api/chats/{chat.id}/messages")
         assert resp.status_code == 401

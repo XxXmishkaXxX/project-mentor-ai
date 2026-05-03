@@ -2,8 +2,8 @@ import uuid
 
 from litestar.testing import AsyncTestClient
 
-from app.chat.db import ChatModel
-from app.users.db import UserModel
+from app.chat.domain.models import Chat
+from app.users.domain.models import User
 from tests.constants import OTHER_EMAIL, OTHER_PASSWORD
 from tests.integration.conftest import login_user
 
@@ -35,7 +35,7 @@ class TestListChats:
     async def test_returns_own_chats(
         self,
         authorized_client: AsyncTestClient,
-        chat: ChatModel,
+        chat: Chat,
     ):
         resp = await authorized_client.get(CHATS_URL)
         assert resp.status_code == 200
@@ -46,8 +46,8 @@ class TestListChats:
     async def test_does_not_return_other_users_chats(
         self,
         client: AsyncTestClient,
-        chat: ChatModel,
-        other_user: UserModel,
+        chat: Chat,
+        other_user: User,
     ):
         session_id = await login_user(
             client,
@@ -69,7 +69,7 @@ class TestGetChat:
     async def test_success(
         self,
         authorized_client: AsyncTestClient,
-        chat: ChatModel,
+        chat: Chat,
     ):
         resp = await authorized_client.get(f"{CHATS_URL}{chat.id}")
         assert resp.status_code == 200
@@ -84,8 +84,8 @@ class TestGetChat:
     async def test_access_denied(
         self,
         client: AsyncTestClient,
-        chat: ChatModel,
-        other_user: UserModel,
+        chat: Chat,
+        other_user: User,
     ):
         session_id = await login_user(
             client,
@@ -102,7 +102,7 @@ class TestDeleteChat:
     async def test_success(
         self,
         authorized_client: AsyncTestClient,
-        chat: ChatModel,
+        chat: Chat,
     ):
         resp = await authorized_client.delete(f"{CHATS_URL}{chat.id}")
         assert resp.status_code == 204
@@ -118,8 +118,8 @@ class TestDeleteChat:
     async def test_access_denied(
         self,
         client: AsyncTestClient,
-        chat: ChatModel,
-        other_user: UserModel,
+        chat: Chat,
+        other_user: User,
     ):
         session_id = await login_user(
             client,

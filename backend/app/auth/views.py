@@ -1,10 +1,11 @@
-from litestar import Request, Response, post
+from litestar import Response, post
 from litestar.datastructures import Cookie
 
 from app.auth.domain.schemas import LoginRequest, RegisterRequest
 from app.base.view import BaseView
 from app.common.config import StaticConfig
 from app.users.domain.schemas import UserResponse
+from app.web.request import Request
 
 
 class AuthView(BaseView):
@@ -16,13 +17,13 @@ class AuthView(BaseView):
 
     @post("/login")
     async def login(self, data: LoginRequest) -> Response[UserResponse]:
-        session_id, user = await self.store.auth_manager.login(data)
+        result = await self.store.auth_manager.login(data)
         return Response(
-            content=user,
+            content=result.user,
             cookies=[
                 Cookie(
                     key=StaticConfig.SESSION_COOKIE_NAME,
-                    value=session_id,
+                    value=result.session_id,
                     httponly=True,
                     samesite="lax",
                     secure=True,

@@ -1,45 +1,63 @@
 import uuid
-from datetime import datetime
+from typing import Any
 
 from sqlalchemy import delete, func, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.base.accessor import BaseAccessor
 from app.chat.db import ChatModel, MessageModel
+from app.chat.domain.enums import MessageRole
+from app.chat.domain.models import Chat, Message
 
 
 class ChatAccessor(BaseAccessor):
-    async def create_chat(self, user_id: uuid.UUID) -> ChatModel:
-        chat = ChatModel(user_id=user_id)
-        return await self.store.pg.add_one(chat)
+    async def create_chat(self, user_id: uuid.UUID) -> Chat:
+        stmt = (
+            pg_insert(ChatModel)
+            .values(user_id=user_id)
+            .returning(ChatModel)
+        )
+        result = await self.store.pg.execute(stmt)
+        return Chat.from_db(result.scalar_one())
 
-    async def get_chats_by_user(self, user_id: uuid.UUID) -> list[ChatModel]:
+    async def get_chats_by_user(self, user_id: uuid.UUID) -> list[Chat]:
         stmt = (
             select(ChatModel)
             .where(ChatModel.user_id == user_id)
             .order_by(ChatModel.updated_at.desc())
         )
-        return await self.store.pg.scalars_all(stmt)
+        rows = await self.store.pg.scalars_all(stmt)
+        return [Chat.from_db(r) for r in rows]
 
-    async def get_chat_by_id(self, chat_id: uuid.UUID) -> ChatModel | None:
-        stmt = select(ChatModel).where(ChatModel.id == chat_id)
-        return await self.store.pg.scalar_one_or_none(stmt)
+    async def get_chat_by_id(self, chat_id: uuid.UUID) -> Chat | None:
+        row = await self.store.pg.scalar_one_or_none(
+            select(ChatModel).where(ChatModel.id == chat_id),
+        )
+        return Chat.from_db(row) if row else None
+
+    async def get_chat_by_owner(
+        self,
+        chat_id: uuid.UUID,
+        user_id: uuid.UUID,
+    ) -> Chat | None:
+        row = await self.store.pg.scalar_one_or_none(
+            select(ChatModel).where(
+                ChatModel.id == chat_id,
+                ChatModel.user_id == user_id,
+            ),
+        )
+        return Chat.from_db(row) if row else None
 
     async def delete_chat(self, chat_id: uuid.UUID) -> None:
-        stmt = delete(ChatModel).where(ChatModel.id == chat_id)
-        await self.store.pg.execute(stmt)
+        await self.store.pg.execute(
+            delete(ChatModel).where(ChatModel.id == chat_id),
+        )
 
     async def update_chat(
         self,
         chat_id: uuid.UUID,
-        *,
-        title: str | None = None,
-        updated_at: datetime | None = None,
-    ) -> ChatModel | None:
-        values: dict[str, object] = {}
-        if title is not None:
-            values["title"] = title
-        if updated_at is not None:
-            values["updated_at"] = updated_at
+        **values: Any,
+    ) -> Chat | None:
         if not values:
             return await self.get_chat_by_id(chat_id)
         stmt = (
@@ -48,26 +66,30 @@ class ChatAccessor(BaseAccessor):
             .values(**values)
             .returning(ChatModel)
         )
-        async with self.store.pg.session() as session:
-            result = await session.execute(stmt)
-            await session.commit()
-            return result.scalar_one_or_none()
+        result = await self.store.pg.execute(stmt)
+        row = result.scalar_one_or_none()
+        return Chat.from_db(row) if row else None
 
     async def add_message(
         self,
         *,
         chat_id: uuid.UUID,
-        role: str,
+        role: MessageRole,
         content: str,
         sources: list[dict] | None = None,
-    ) -> MessageModel:
-        msg = MessageModel(
-            chat_id=chat_id,
-            role=role,
-            content=content,
-            sources=sources,
+    ) -> Message:
+        stmt = (
+            pg_insert(MessageModel)
+            .values(
+                chat_id=chat_id,
+                role=role,
+                content=content,
+                sources=sources,
+            )
+            .returning(MessageModel)
         )
-        return await self.store.pg.add_one(msg)
+        result = await self.store.pg.execute(stmt)
+        return Message.from_db(result.scalar_one())
 
     async def get_messages(
         self,
@@ -75,7 +97,7 @@ class ChatAccessor(BaseAccessor):
         *,
         offset: int = 0,
         limit: int = 50,
-    ) -> list[MessageModel]:
+    ) -> list[Message]:
         stmt = (
             select(MessageModel)
             .where(MessageModel.chat_id == chat_id)
@@ -83,7 +105,8 @@ class ChatAccessor(BaseAccessor):
             .offset(offset)
             .limit(limit)
         )
-        return await self.store.pg.scalars_all(stmt)
+        rows = await self.store.pg.scalars_all(stmt)
+        return [Message.from_db(r) for r in rows]
 
     async def count_messages(self, chat_id: uuid.UUID) -> int:
         stmt = (
@@ -97,12 +120,12 @@ class ChatAccessor(BaseAccessor):
         self,
         chat_id: uuid.UUID,
         limit: int = 10,
-    ) -> list[MessageModel]:
+    ) -> list[Message]:
         stmt = (
             select(MessageModel)
             .where(MessageModel.chat_id == chat_id)
             .order_by(MessageModel.created_at.desc(), MessageModel.id.desc())
             .limit(limit)
         )
-        messages = await self.store.pg.scalars_all(stmt)
-        return list(reversed(messages))
+        rows = await self.store.pg.scalars_all(stmt)
+        return [Message.from_db(r) for r in reversed(rows)]

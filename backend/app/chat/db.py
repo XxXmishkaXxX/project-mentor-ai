@@ -4,10 +4,11 @@ from sqlalchemy import CheckConstraint, ForeignKey, Index, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.chat.domain.enums import MessageRole
 from app.common.config import StaticConfig
 from app.store.pg import models
 
-MESSAGE_ROLES = ("user", "assistant", "system")
+_ROLE_VALUES = tuple(r.value for r in MessageRole)
 
 
 class ChatModel(models.Base, models.TimestampMixin):
@@ -51,7 +52,7 @@ class MessageModel(models.Base):
     __table_args__ = (
         Index("idx_messages_chat_id", "chat_id"),
         CheckConstraint(
-            f"role IN {MESSAGE_ROLES!r}",
+            f"role IN {_ROLE_VALUES!r}",
             name="ck_messages_role",
         ),
     )

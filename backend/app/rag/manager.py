@@ -1,9 +1,13 @@
 import json
 from collections.abc import AsyncGenerator
 
+import httpx
+
 from app.base.manager import BaseManager
+from app.chat.domain.enums import MessageRole
+from app.chat.domain.models import ChatMessage
 from app.common.config import StaticConfig
-from app.common.sse import sse_event
+from app.common.sse import SSEEventType, sse_event
 from app.rag.accessors.retriever import SearchResult
 from app.rag.config import RAGConfig
 
@@ -17,17 +21,20 @@ class RAGManager(BaseManager):
     async def ask(
         self,
         question: str,
-        chat_history: list[dict[str, str]] | None = None,
+        chat_history: list[ChatMessage] | None = None,
     ) -> AsyncGenerator[str, None]:
         """Yield SSE-formatted events: token, sources, done."""
         history = chat_history or []
 
         try:
             query_vector = await self.store.embedder.embed_text(question)
-        except Exception:
+        except (RuntimeError, httpx.HTTPStatusError, httpx.TimeoutException):
             self.logger.exception("failed to embed question")
-            yield sse_event("error", "Ошибка при обработке вопроса.")
-            yield sse_event("done", "")
+            yield sse_event(
+                SSEEventType.ERROR,
+                "Ошибка при обработке вопроса.",
+            )
+            yield sse_event(SSEEventType.DONE, "")
             return
 
         rag_cfg = self._rag_config()
@@ -38,32 +45,41 @@ class RAGManager(BaseManager):
                 top_k=rag_cfg.top_k,
                 score_threshold=rag_cfg.score_threshold,
             )
-        except Exception:
+        except Exception:  # noqa: BLE001 — qdrant client exceptions
             self.logger.exception("failed to search in qdrant")
-            yield sse_event("error", "Ошибка при поиске в базе знаний.")
-            yield sse_event("done", "")
+            yield sse_event(
+                SSEEventType.ERROR,
+                "Ошибка при поиске в базе знаний.",
+            )
+            yield sse_event(SSEEventType.DONE, "")
             return
 
         if not results:
             yield sse_event(
-                "no_data",
+                SSEEventType.NO_DATA,
                 "К сожалению, в базе знаний нет информации "
                 "для ответа на этот вопрос. "
                 "Попробуйте переформулировать вопрос.",
             )
-            yield sse_event("done", "")
+            yield sse_event(SSEEventType.DONE, "")
             return
 
         context = _build_context(results)
         messages = _build_messages(context, history, question)
 
         try:
-            async for token in self.store.llm.stream_completion(messages):
-                yield sse_event("token", token)
-        except Exception:
+            serialized = [m.model_dump() for m in messages]
+            async for token in self.store.llm.stream_completion(
+                serialized,
+            ):
+                yield sse_event(SSEEventType.TOKEN, token)
+        except (RuntimeError, httpx.HTTPStatusError, httpx.TimeoutException):
             self.logger.exception("failed during LLM streaming")
-            yield sse_event("error", "Ошибка при генерации ответа.")
-            yield sse_event("done", "")
+            yield sse_event(
+                SSEEventType.ERROR,
+                "Ошибка при генерации ответа.",
+            )
+            yield sse_event(SSEEventType.DONE, "")
             return
 
         sources = [
@@ -74,8 +90,11 @@ class RAGManager(BaseManager):
             }
             for r in results
         ]
-        yield sse_event("sources", json.dumps(sources, ensure_ascii=False))
-        yield sse_event("done", "")
+        yield sse_event(
+            SSEEventType.SOURCES,
+            json.dumps(sources, ensure_ascii=False),
+        )
+        yield sse_event(SSEEventType.DONE, "")
 
 
 def _build_context(results: list[SearchResult]) -> str:
@@ -89,21 +108,18 @@ def _build_context(results: list[SearchResult]) -> str:
 
 def _build_messages(
     context: str,
-    history: list[dict[str, str]],
+    history: list[ChatMessage],
     question: str,
-) -> list[dict[str, str]]:
+) -> list[ChatMessage]:
     system_content = (
-        f"{StaticConfig.SYSTEM_PROMPT}\n\nКонтекст из базы знаний:\n\n{context}"
+        f"{StaticConfig.SYSTEM_PROMPT}"
+        f"\n\nКонтекст из базы знаний:\n\n{context}"
     )
-    messages: list[dict[str, str]] = [
-        {"role": "system", "content": system_content},
+    messages: list[ChatMessage] = [
+        ChatMessage(role=MessageRole.SYSTEM, content=system_content),
     ]
-
-    for msg in history:
-        role = msg.get("role")
-        content = msg.get("content")
-        if role and content is not None:
-            messages.append({"role": role, "content": content})
-
-    messages.append({"role": "user", "content": question})
+    messages.extend(history)
+    messages.append(
+        ChatMessage(role=MessageRole.USER, content=question),
+    )
     return messages

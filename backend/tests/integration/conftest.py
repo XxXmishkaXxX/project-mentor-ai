@@ -1,7 +1,9 @@
+from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock
 
 import pytest
 from cashews import cache
+from litestar import Litestar
 from litestar.testing import AsyncTestClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
@@ -16,11 +18,11 @@ from app.global_.settings import Settings
 from app.store.pg.config import DatabaseConfig
 from app.store.pg.models import Base
 from app.store.store import Store
-from app.users.db import UserModel
+from app.users.domain.models import User
 
 
 @pytest.fixture(scope="session")
-async def store(settings: Settings) -> Store:
+async def store(settings: Settings) -> AsyncGenerator[Store]:
     _store = Store(settings)
 
     db_config = DatabaseConfig.from_settings(settings.config)
@@ -43,11 +45,11 @@ async def store(settings: Settings) -> Store:
     cache.setup("mem://")
 
     if hasattr(_store, "embedder"):
-        _store.embedder._client = AsyncMock()
+        _store.embedder._client = AsyncMock()  # noqa: SLF001
     if hasattr(_store, "retriever"):
-        _store.retriever._client = AsyncMock()
+        _store.retriever._client = AsyncMock()  # noqa: SLF001
     if hasattr(_store, "llm"):
-        _store.llm._client = AsyncMock()
+        _store.llm._client = AsyncMock()  # noqa: SLF001
 
     yield _store
 
@@ -64,7 +66,7 @@ async def _clean_db(store: Store) -> None:
         await session.commit()
 
 
-def _create_app_for_tests(store: Store, settings: Settings):
+def _create_app_for_tests(store: Store, settings: Settings) -> Litestar:
     from litestar import Litestar, MediaType, get
     from litestar.openapi import OpenAPIConfig
 
@@ -76,7 +78,7 @@ def _create_app_for_tests(store: Store, settings: Settings):
         internal_server_error_handler,
     )
     from app.web.middlewares import SessionMiddleware
-    from app.web.request import AppRequest
+    from app.web.request import Request
 
     @get("/api/health", media_type=MediaType.JSON)
     async def health_check() -> dict[str, str]:
@@ -91,7 +93,7 @@ def _create_app_for_tests(store: Store, settings: Settings):
             UserView,
             ChatView,
         ],
-        request_class=AppRequest,
+        request_class=Request,
         middleware=[SessionMiddleware],
         after_exception=[after_exception_handler],
         exception_handlers={
@@ -108,12 +110,12 @@ def _create_app_for_tests(store: Store, settings: Settings):
 
 
 @pytest.fixture(scope="session")
-def app(store: Store, settings: Settings):
+def app(store: Store, settings: Settings) -> Litestar:
     return _create_app_for_tests(store, settings)
 
 
 @pytest.fixture(scope="session")
-async def client(app) -> AsyncTestClient:
+async def client(app: Litestar) -> AsyncGenerator[AsyncTestClient]:
     async with AsyncTestClient(app=app) as tc:
         yield tc
 
@@ -123,41 +125,45 @@ async def create_user_in_db(
     *,
     username: str = "testuser",
     email: str = "test@example.com",
-    password: str = "securepass123",
-) -> UserModel:
+    password: str = "securepass123",  # noqa: S107
+) -> User:
     from app.auth.manager import AuthManager
 
     password_hash = AuthManager.hash_password(password)
-    return await store.user_accessor.create_user(
+    user = await store.user_accessor.create_user(
         username=username,
         email=email,
         password_hash=password_hash,
     )
+    assert user is not None
+    return user
 
 
 async def login_user(
     client: AsyncTestClient,
     email: str = "test@example.com",
-    password: str = "securepass123",
+    password: str = "securepass123",  # noqa: S107
 ) -> str:
     resp = await client.post(
         "/api/auth/login",
         json={"email": email, "password": password},
     )
     assert resp.status_code == 201
-    return resp.cookies.get("session_id", "")
+    session_id = resp.cookies.get("session_id")
+    assert session_id is not None
+    return session_id
 
 
 @pytest.fixture
-async def user(store: Store) -> UserModel:
+async def user(store: Store) -> User:
     return await create_user_in_db(store)
 
 
 @pytest.fixture
 async def authorized_client(
     client: AsyncTestClient,
-    user: UserModel,
-) -> AsyncTestClient:
+    user: User,
+) -> AsyncGenerator[AsyncTestClient]:
     session_id = await login_user(client, user.email)
     client.cookies.set("session_id", session_id)
     yield client

@@ -1,4 +1,5 @@
 import json
+from typing import Any
 
 from litestar.connection import Request
 from litestar.types import ASGIApp, Receive, Scope, Send
@@ -35,14 +36,14 @@ class SessionMiddleware:
             await self.app(scope, receive, send)
             return
 
-        req_path = scope["path"]
+        req_path: str = scope["path"]
         if req_path in WHITELIST_PATHS or req_path.startswith(
             WHITELIST_PREFIXES
         ):
             await self.app(scope, receive, send)
             return
 
-        request = Request(scope)
+        request: Request[Any, Any, Any] = Request(scope)
         session_id = request.cookies.get(
             StaticConfig.SESSION_COOKIE_NAME,
         )
@@ -64,19 +65,17 @@ class SessionMiddleware:
     @staticmethod
     async def _send_401(send: Send) -> None:
         body = json.dumps({"detail": "Not authenticated"}).encode()
-        await send(
-            {
-                "type": "http.response.start",
-                "status": 401,
-                "headers": [
-                    [b"content-type", b"application/json"],
-                    [b"content-length", str(len(body)).encode()],
-                ],
-            }
-        )
-        await send(
-            {
-                "type": "http.response.body",
-                "body": body,
-            }
-        )
+        start_event: dict[str, Any] = {
+            "type": "http.response.start",
+            "status": 401,
+            "headers": [
+                [b"content-type", b"application/json"],
+                [b"content-length", str(len(body)).encode()],
+            ],
+        }
+        await send(start_event)  # type: ignore[arg-type]
+        body_event: dict[str, Any] = {
+            "type": "http.response.body",
+            "body": body,
+        }
+        await send(body_event)  # type: ignore[arg-type]

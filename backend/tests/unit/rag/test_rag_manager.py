@@ -1,6 +1,8 @@
 from unittest.mock import AsyncMock, MagicMock
 
-from app.common.sse import parse_sse, sse_event
+from app.chat.domain.enums import MessageRole
+from app.chat.domain.models import ChatMessage
+from app.common.sse import SSEEventType, parse_sse, sse_event
 from app.rag.accessors.retriever import SearchResult
 from app.rag.manager import RAGManager
 
@@ -8,16 +10,6 @@ from app.rag.manager import RAGManager
 async def _collect_raw(gen) -> list[str]:
     """Consume an SSE async generator, return raw event strings."""
     return [raw async for raw in gen]
-
-
-async def _collect_parsed(gen) -> list[tuple[str, str]]:
-    """Consume an SSE async generator, return only parseable (event, data)."""
-    events = []
-    async for raw in gen:
-        parsed = parse_sse(raw)
-        if parsed:
-            events.append(parsed)
-    return events
 
 
 class TestRAGManagerAsk:
@@ -34,8 +26,8 @@ class TestRAGManagerAsk:
         parsed = [p for r in raw if (p := parse_sse(r))]
 
         assert len(parsed) == 2
-        assert parsed[0][0] == "error"
-        assert parsed[1][0] == "done"
+        assert parsed[0].event == SSEEventType.ERROR
+        assert parsed[1].event == SSEEventType.DONE
 
     async def test_retriever_failure_yields_error(
         self,
@@ -52,8 +44,8 @@ class TestRAGManagerAsk:
         raw = await _collect_raw(rag_manager.ask("test question"))
         parsed = [p for r in raw if (p := parse_sse(r))]
 
-        assert parsed[0][0] == "error"
-        assert sse_event("done", "") in raw
+        assert parsed[0].event == SSEEventType.ERROR
+        assert sse_event(SSEEventType.DONE, "") in raw
 
     async def test_no_results_yields_no_data(
         self,
@@ -68,8 +60,8 @@ class TestRAGManagerAsk:
         raw = await _collect_raw(rag_manager.ask("test question"))
         parsed = [p for r in raw if (p := parse_sse(r))]
 
-        assert parsed[0][0] == "no_data"
-        assert sse_event("done", "") in raw
+        assert parsed[0].event == SSEEventType.NO_DATA
+        assert sse_event(SSEEventType.DONE, "") in raw
 
     async def test_successful_flow_yields_tokens_sources_done(
         self,
@@ -89,7 +81,9 @@ class TestRAGManagerAsk:
                 score=0.9,
             ),
         ]
-        mock_store.retriever.search = AsyncMock(return_value=search_results)
+        mock_store.retriever.search = AsyncMock(
+            return_value=search_results,
+        )
 
         async def fake_stream(messages):
             yield "Hello"
@@ -100,12 +94,12 @@ class TestRAGManagerAsk:
         raw = await _collect_raw(rag_manager.ask("test question"))
         parsed = [p for r in raw if (p := parse_sse(r))]
 
-        event_types = [e[0] for e in parsed]
-        assert "token" in event_types
-        assert "sources" in event_types
-        assert sse_event("done", "") in raw
+        event_types = [e.event for e in parsed]
+        assert SSEEventType.TOKEN in event_types
+        assert SSEEventType.SOURCES in event_types
+        assert sse_event(SSEEventType.DONE, "") in raw
 
-        tokens = [e[1] for e in parsed if e[0] == "token"]
+        tokens = [e.data for e in parsed if e.event == SSEEventType.TOKEN]
         assert "Hello" in tokens
         assert " world" in tokens
 
@@ -138,8 +132,8 @@ class TestRAGManagerAsk:
         raw = await _collect_raw(rag_manager.ask("question"))
         parsed = [p for r in raw if (p := parse_sse(r))]
 
-        assert any(e[0] == "error" for e in parsed)
-        assert sse_event("done", "") in raw
+        assert any(e.event == SSEEventType.ERROR for e in parsed)
+        assert sse_event(SSEEventType.DONE, "") in raw
 
     async def test_chat_history_is_passed_through(
         self,
@@ -170,8 +164,14 @@ class TestRAGManagerAsk:
         mock_store.llm.stream_completion = capturing_stream
 
         history = [
-            {"role": "user", "content": "prev question"},
-            {"role": "assistant", "content": "prev answer"},
+            ChatMessage(
+                role=MessageRole.USER,
+                content="prev question",
+            ),
+            ChatMessage(
+                role=MessageRole.ASSISTANT,
+                content="prev answer",
+            ),
         ]
 
         await _collect_raw(
@@ -179,10 +179,12 @@ class TestRAGManagerAsk:
         )
 
         roles = [m["role"] for m in captured_messages]
-        assert "system" in roles
-        assert "user" in roles
+        assert MessageRole.SYSTEM in roles
+        assert MessageRole.USER in roles
         user_contents = [
-            m["content"] for m in captured_messages if m["role"] == "user"
+            m["content"]
+            for m in captured_messages
+            if m["role"] == MessageRole.USER
         ]
         assert "prev question" in user_contents
         assert "new question" in user_contents

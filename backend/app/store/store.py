@@ -1,19 +1,16 @@
-from typing import TYPE_CHECKING
-
 import structlog
 
-if TYPE_CHECKING:
-    from app.base.accessor import BaseAccessor
-    from app.global_.settings import Settings
+from app.base.accessor import BaseAccessor
+from app.global_.settings import Settings
 
 
 class Store:
     __frozen__ = False
 
-    def __init__(self, settings: "Settings") -> None:
+    def __init__(self, settings: Settings) -> None:
         self._logger = structlog.get_logger("store")
         self._settings = settings
-        self._accessors: dict[str, "BaseAccessor"] = {}
+        self._accessors: dict[str, BaseAccessor] = {}
         self.__freeze__()
 
         from app.auth.accessor import SessionAccessor
@@ -63,7 +60,7 @@ class Store:
         return self._rag_available
 
     @property
-    def settings(self) -> "Settings":
+    def settings(self) -> Settings:
         return self._settings
 
     @property

@@ -1,89 +1,136 @@
-from __future__ import annotations
-
-import asyncio
-import sys
 import uuid
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import click
-import structlog
 from sqlalchemy import delete, select
 from sqlalchemy import update as sa_update
 
-from app import global_store
 from app.common.config import StaticConfig
 from app.documents.db import DocumentModel
+from app.global_.settings import path as cfg_path
 from app.rag.chunker import parse_file, split_into_chunks
 from app.rag.config import RAGConfig
-from app.store.store import Store
 
-if TYPE_CHECKING:
-    from app.global_.settings import Settings
-
-logger = structlog.get_logger("seed_knowledge_base")
-
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-KB_DIR = PROJECT_ROOT / "knowledge_base"
+from . import BaseCommand
 
 
-async def _seed(store: Store) -> None:
-    if not store.is_rag_available:
-        logger.error(
-            "RAG is not configured (llm.api_base_url is empty). "
-            "Cannot embed documents.",
+class SeedKnowledgeBase(BaseCommand):
+    """
+    python -m app seed_knowledge_base
+    python -m app seed_knowledge_base --dir /path/to/custom/kb
+    """
+
+    name = "seed_knowledge_base"
+    help = "Seed the knowledge base: parse → chunk → embed → Qdrant + PG"
+
+    @classmethod
+    def click_options(cls) -> list:
+        return [
+            click.option(
+                "--dir",
+                "kb_dir",
+                type=click.Path(exists=True, file_okay=False, path_type=Path),
+                default=None,
+                help="Path to knowledge_base directory "
+                "(default: from config or ./knowledge_base)",
+            ),
+        ]
+
+    def _resolve_kb_dir(self, kb_dir: Path | None) -> Path:
+        if kb_dir is not None:
+            return kb_dir
+        configured = cfg_path(
+            self.store.settings.config,
+            "app",
+            "knowledge_base_dir",
+            default="knowledge_base",
         )
-        sys.exit(1)
+        resolved = Path(configured)
+        if not resolved.is_absolute():
+            resolved = Path.cwd() / resolved
+        return resolved
 
-    if not KB_DIR.is_dir():
-        logger.error("knowledge_base/ directory not found", path=str(KB_DIR))
-        sys.exit(1)
+    async def execute(self, kb_dir: Path | None = None, **_kwargs) -> None:
+        kb_dir = self._resolve_kb_dir(kb_dir)
 
-    files = sorted(
-        f
-        for f in KB_DIR.iterdir()
-        if f.is_file() and f.suffix.lower() in StaticConfig.SUPPORTED_EXTENSIONS
-    )
+        if not self.store.is_rag_available:
+            self.logger.error(
+                "RAG is not configured (llm.api_base_url is empty). "
+                "Cannot embed documents.",
+            )
+            return
 
-    if not files:
-        logger.info("No supported files found in knowledge_base/", dir=str(KB_DIR))
-        return
+        if not kb_dir.is_dir():
+            self.logger.error(
+                "knowledge_base/ directory not found", path=str(kb_dir)
+            )
+            return
 
-    logger.info("Found files to process", count=len(files))
-    rag_cfg = RAGConfig.from_settings(store.settings.config)
-    collection_ensured = False
-    indexed = 0
+        files = sorted(
+            f
+            for f in kb_dir.iterdir()
+            if f.is_file()
+            and f.suffix.lower() in StaticConfig.SUPPORTED_EXTENSIONS
+        )
 
-    for file_path in files:
-        rel_path = str(file_path.relative_to(PROJECT_ROOT))
+        if not files:
+            self.logger.info("No supported files found", dir=str(kb_dir))
+            return
 
-        existing = await store.pg.scalar_one_or_none(
+        self.logger.info("Found files to process", count=len(files))
+        rag_cfg = RAGConfig.from_settings(self.store.settings.config)
+        collection_ensured = False
+        indexed = 0
+
+        for file_path in files:
+            rel_path = str(file_path.relative_to(kb_dir.parent))
+            indexed += await self._process_file(
+                file_path,
+                rel_path,
+                rag_cfg,
+                collection_ensured,
+            )
+            if not collection_ensured and indexed > 0:
+                collection_ensured = True
+
+        self.logger.info("Seeding complete", indexed=indexed)
+
+    async def _process_file(
+        self,
+        file_path: Path,
+        rel_path: str,
+        rag_cfg: RAGConfig,
+        collection_ensured: bool,
+    ) -> int:
+        existing = await self.store.pg.scalar_one_or_none(
             select(DocumentModel).where(DocumentModel.file_path == rel_path),
         )
         if existing is not None and existing.status == "indexed":
-            logger.info("Already indexed, skipping", file=rel_path)
-            continue
+            self.logger.info("Already indexed, skipping", file=rel_path)
+            return 0
 
         if existing is not None:
-            logger.info(
+            self.logger.info(
                 "Cleaning up partial state before re-index",
                 file=rel_path,
                 old_status=existing.status,
             )
             try:
-                await store.retriever.delete_by_document(str(existing.id))
+                await self.store.retriever.delete_by_document(str(existing.id))
             except Exception:  # noqa: BLE001
-                logger.warning("Could not clean Qdrant vectors", file=rel_path)
-            await store.pg.execute(
+                self.logger.warning(
+                    "Could not clean Qdrant vectors", file=rel_path
+                )
+            await self.store.pg.execute(
                 delete(DocumentModel).where(DocumentModel.id == existing.id),
             )
 
-        logger.info("Processing", file=rel_path)
+        self.logger.info("Processing", file=rel_path)
         try:
             content = parse_file(file_path)
             if not content.strip():
-                logger.warning("Empty file, skipping", file=rel_path)
-                continue
+                self.logger.warning("Empty file, skipping", file=rel_path)
+                return 0
 
             chunks = split_into_chunks(
                 content,
@@ -92,17 +139,20 @@ async def _seed(store: Store) -> None:
                 file_name=file_path.name,
             )
             if not chunks:
-                logger.warning("No chunks produced, skipping", file=rel_path)
-                continue
+                self.logger.warning(
+                    "No chunks produced, skipping", file=rel_path
+                )
+                return 0
 
-            vectors = await store.embedder.embed_batch([c.text for c in chunks])
+            vectors = await self.store.embedder.embed_batch(
+                [c.text for c in chunks]
+            )
             if not vectors:
-                logger.warning("Empty embeddings, skipping", file=rel_path)
-                continue
+                self.logger.warning("Empty embeddings, skipping", file=rel_path)
+                return 0
 
             if not collection_ensured:
-                await store.retriever.ensure_collection(len(vectors[0]))
-                collection_ensured = True
+                await self.store.retriever.ensure_collection(len(vectors[0]))
 
             doc_id = str(uuid.uuid4())
 
@@ -114,47 +164,32 @@ async def _seed(store: Store) -> None:
                 status="pending",
                 chunk_count=len(chunks),
             )
-            await store.pg.add_one(doc)
+            await self.store.pg.add_one(doc)
 
-            await store.retriever.upsert_chunks(
+            await self.store.retriever.upsert_chunks(
                 document_id=doc_id,
                 chunks=chunks,
                 vectors=vectors,
                 document_title=file_path.stem,
             )
 
-            await store.pg.execute(
+            await self.store.pg.execute(
                 sa_update(DocumentModel)
                 .where(DocumentModel.id == uuid.UUID(doc_id))
                 .values(status="indexed"),
             )
 
-            logger.info(
+            self.logger.info(
                 "Indexed successfully",
                 file=rel_path,
                 chunks=len(chunks),
                 document_id=doc_id,
             )
-            indexed += 1
+            return 1
 
         except Exception:
-            logger.exception("Failed to process", file=rel_path)
+            self.logger.exception("Failed to process", file=rel_path)
+            return 0
 
-    logger.info("Seeding complete", indexed=indexed)
 
-
-@click.command(name="seed_knowledge_base", help="Seed the knowledge base: parse → chunk → embed → Qdrant + PG")
-@click.pass_obj
-def seed_knowledge_base(settings: "Settings") -> None:
-    """python -m app seed_knowledge_base"""
-
-    async def _run() -> None:
-        store = Store(settings)
-        global_store.set(store)
-        try:
-            await store.connect_all()
-            await _seed(store)
-        finally:
-            await store.disconnect_all()
-
-    asyncio.run(_run())
+seed_knowledge_base = SeedKnowledgeBase.command

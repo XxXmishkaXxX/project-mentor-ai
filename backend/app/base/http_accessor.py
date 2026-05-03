@@ -37,8 +37,8 @@ class BaseHttpAccessor(BaseAccessor):
 
     async def _request(
         self,
-        method: str,
         path: str,
+        method: str = "POST",
         **kwargs: Any,
     ) -> httpx.Response:
         last_exc: Exception | None = None
@@ -85,17 +85,17 @@ class BaseHttpAccessor(BaseAccessor):
 
     async def _request_json(
         self,
-        method: str,
         path: str,
+        method: str = "POST",
         **kwargs: Any,
     ) -> dict:
-        resp = await self._request(method, path, **kwargs)
+        resp = await self._request(path, method, **kwargs)
         return resp.json()
 
     async def _open_stream(
         self,
-        method: str,
         path: str,
+        method: str = "POST",
         **kwargs: Any,
     ) -> httpx.Response:
         """Open a streaming connection with retries."""

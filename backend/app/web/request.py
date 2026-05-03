@@ -1,15 +1,20 @@
-from litestar.connection import Request
+from litestar.connection import Request as LitestarRequest
 
 from app.auth.domain.models import SessionUser
 
 
-class AppRequest(Request):
+class Request(LitestarRequest):
+    """Application-specific request class."""
+
     @property
     def user(self) -> SessionUser:
         try:
             return self.state["user"]
         except KeyError:
-            msg = "Session data not found — is SessionMiddleware active for this route?"
+            msg = (
+                "Session data not found — "
+                "is SessionMiddleware active for this route?"
+            )
             raise RuntimeError(msg) from None
 
     @property
@@ -17,5 +22,8 @@ class AppRequest(Request):
         try:
             return self.state["session_id"]
         except KeyError:
-            msg = "Session ID not found — is SessionMiddleware active for this route?"
+            msg = (
+                "Session ID not found — "
+                "is SessionMiddleware active for this route?"
+            )
             raise RuntimeError(msg) from None

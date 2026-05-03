@@ -6,7 +6,6 @@ import pytest
 from app.auth.domain.schemas import LoginRequest, RegisterRequest
 from app.auth.exceptions import InvalidCredentialsError
 from app.auth.manager import AuthManager
-from app.users.domain.schemas import UserResponse
 
 
 class TestHashPassword:
@@ -46,12 +45,6 @@ class TestRegister:
         mock_store.user_accessor.create_user = AsyncMock(
             return_value=fake_user,
         )
-        mock_store.user_manager.to_response.return_value = UserResponse(
-            id=fake_user.id,
-            username="newuser",
-            email="new@example.com",
-            role="student",
-        )
 
         data = RegisterRequest(
             username="newuser",
@@ -90,18 +83,12 @@ class TestLogin:
             return_value=fake_user,
         )
         mock_store.session_accessor.create_session = AsyncMock()
-        mock_store.user_manager.to_response.return_value = UserResponse(
-            id=fake_user.id,
-            username="loginuser",
-            email="login@example.com",
-            role="student",
-        )
 
         data = LoginRequest(email="login@example.com", password=password)
-        session_id, user_resp = await auth_manager.login(data)
+        result = await auth_manager.login(data)
 
-        assert len(session_id) > 0
-        assert user_resp.email == "login@example.com"
+        assert len(result.session_id) > 0
+        assert result.user.email == "login@example.com"
         mock_store.session_accessor.create_session.assert_called_once()
 
     async def test_user_not_found(

@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from app.auth.domain.models import SessionUser
 from app.base.accessor import BaseAccessor
 from app.common.config import StaticConfig
-from app.users.db import UserModel
+from app.users.domain.models import User
 
 
 class SessionAccessor(BaseAccessor):
@@ -14,7 +14,7 @@ class SessionAccessor(BaseAccessor):
     async def create_session(
         self,
         session_id: str,
-        user: UserModel,
+        user: User,
     ) -> None:
         payload = {
             "user_id": str(user.id),

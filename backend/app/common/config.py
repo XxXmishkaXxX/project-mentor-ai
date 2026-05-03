@@ -9,6 +9,9 @@ class StaticConfig:
     SQL_STR_LEN_XLARGE = 255
     SQL_STR_LEN_TEXT = 500
 
+    MAX_CHAT_TITLE_LENGTH = 100
+    CHAT_HISTORY_WINDOW = 10
+
     SUPPORTED_EXTENSIONS: frozenset[str] = frozenset(
         {".pdf", ".docx", ".md", ".txt"},
     )

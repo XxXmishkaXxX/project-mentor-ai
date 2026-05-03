@@ -1,7 +1,10 @@
 app:
   secret_key: "change-me-in-local-config"
   session_ttl_hours: 24
-  cors_origins:
+  knowledge_base_dir: "knowledge_base"
+
+security:
+  cors_allowed_domains:
     - "http://localhost:5173"
 
 store:

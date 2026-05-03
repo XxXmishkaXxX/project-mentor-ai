@@ -4,6 +4,7 @@ from collections.abc import AsyncGenerator
 import httpx
 
 from app.base.http_accessor import BaseHttpAccessor
+from app.chat.domain.enums import MessageRole
 from app.common.config import StaticConfig
 from app.rag.config import LLMProviderConfig
 
@@ -26,7 +27,7 @@ class LLMAccessor(BaseHttpAccessor):
 
     async def stream_completion(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, str | MessageRole]],
     ) -> AsyncGenerator[str, None]:
         payload = {
             "model": self._config.model,
@@ -35,7 +36,7 @@ class LLMAccessor(BaseHttpAccessor):
         }
 
         resp = await self._open_stream(
-            "POST", "/chat/completions", json=payload
+            "/chat/completions", json=payload
         )
         try:
             async for line in resp.aiter_lines():

@@ -48,7 +48,7 @@ class EmbedderAccessor(BaseHttpAccessor):
             "model": self._config.embedding_model,
             "input": texts,
         }
-        body = await self._request_json("POST", "/embeddings", json=payload)
+        body = await self._request_json("/embeddings", json=payload)
         items = body.get("data")
         if not items:
             return []

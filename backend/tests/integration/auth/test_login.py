@@ -1,6 +1,6 @@
 from litestar.testing import AsyncTestClient
 
-from app.users.db import UserModel
+from app.users.domain.models import User
 from tests.constants import DEFAULT_EMAIL, DEFAULT_PASSWORD
 
 LOGIN_URL = "/api/auth/login"
@@ -10,7 +10,7 @@ class TestLogin:
     async def test_success(
         self,
         client: AsyncTestClient,
-        registered_user: UserModel,
+        registered_user: User,
     ):
         resp = await client.post(
             LOGIN_URL,
@@ -31,7 +31,7 @@ class TestLogin:
     async def test_wrong_password(
         self,
         client: AsyncTestClient,
-        registered_user: UserModel,
+        registered_user: User,
     ):
         resp = await client.post(
             LOGIN_URL,
@@ -55,7 +55,7 @@ class TestLogin:
     async def test_session_cookie_works(
         self,
         client: AsyncTestClient,
-        registered_user: UserModel,
+        registered_user: User,
     ):
         resp = await client.post(
             LOGIN_URL,
@@ -79,7 +79,7 @@ class TestLogout:
     async def test_success(
         self,
         client: AsyncTestClient,
-        registered_user: UserModel,
+        registered_user: User,
     ):
         login_resp = await client.post(
             LOGIN_URL,
@@ -90,6 +90,7 @@ class TestLogout:
         )
         assert login_resp.status_code == 201
         session_id = login_resp.cookies.get("session_id")
+        assert session_id is not None
         client.cookies.set("session_id", session_id)
 
         logout_resp = await client.post("/api/auth/logout")
