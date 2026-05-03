@@ -1,31 +1,19 @@
-from __future__ import annotations
-
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.orm import DeclarativeBase
 
 from app import global_settings
-from app.global_.settings import path
-
-
-class Base(DeclarativeBase):
-    pass
+from app.store.pg.config import DatabaseConfig
+from app.store.pg.models import Base as Base
 
 
 def get_engine():
+    """Used by Alembic migrations only — runtime uses PgAccessor."""
     settings = global_settings.get()
-    url = path(settings.config, "db", "url")
-    if url is None:
-        host = path(settings.config, "db", "host", default="localhost")
-        port = path(settings.config, "db", "port", default=5432)
-        name = path(settings.config, "db", "name", default="mentor_ai")
-        user = path(settings.config, "db", "user", default="postgres")
-        password = path(settings.config, "db", "password", default="postgres")
-        url = f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{name}"
-    return create_async_engine(url, echo=settings.debug)
+    config = DatabaseConfig.from_settings(settings.config)
+    return create_async_engine(config.url, echo=settings.debug)
 
 
 def get_session_factory(engine=None):

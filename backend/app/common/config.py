@@ -1,0 +1,10 @@
+class StaticConfig:
+    SESSION_TTL_HOURS = 24
+    SESSION_COOKIE_NAME = "session_id"
+    SESSION_PREFIX = "session:"
+
+    SQL_STR_LEN_SMALL = 20
+    SQL_STR_LEN_MEDIUM = 50
+    SQL_STR_LEN_LARGE = 100
+    SQL_STR_LEN_XLARGE = 255
+    SQL_STR_LEN_TEXT = 500
