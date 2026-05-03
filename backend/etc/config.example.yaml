@@ -1,0 +1,36 @@
+app:
+  secret_key: "change-me-in-local-config"
+  session_ttl_hours: 24
+  cors_origins:
+    - "http://localhost:5173"
+
+db:
+  host: localhost
+  port: 5432
+  name: mentor_ai
+  user: postgres
+  password: postgres
+
+redis:
+  host: localhost
+  port: 6379
+
+qdrant:
+  host: localhost
+  port: 6333
+
+qwen:
+  api_key: ""
+  api_base_url: ""
+  model: "qwen-3.6"
+  embedding_model: "qwen-embedding"
+
+rag:
+  top_k: 5
+  score_threshold: 0.7
+  chunk_size: 512
+  chunk_overlap: 64
+
+sentry:
+  dsn: ""
+  env: "dev"
