@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from sqlalchemy import delete, func, select, update
 
@@ -30,14 +31,21 @@ class ChatAccessor(BaseAccessor):
     async def update_chat(
         self,
         chat_id: uuid.UUID,
-        **kwargs: object,
+        *,
+        title: str | None = None,
+        updated_at: datetime | None = None,
     ) -> ChatModel | None:
-        if not kwargs:
+        values: dict[str, object] = {}
+        if title is not None:
+            values["title"] = title
+        if updated_at is not None:
+            values["updated_at"] = updated_at
+        if not values:
             return await self.get_chat_by_id(chat_id)
         stmt = (
             update(ChatModel)
             .where(ChatModel.id == chat_id)
-            .values(**kwargs)
+            .values(**values)
             .returning(ChatModel)
         )
         async with self.store.pg.session() as session:
@@ -71,7 +79,7 @@ class ChatAccessor(BaseAccessor):
         stmt = (
             select(MessageModel)
             .where(MessageModel.chat_id == chat_id)
-            .order_by(MessageModel.created_at.asc())
+            .order_by(MessageModel.created_at.asc(), MessageModel.id.asc())
             .offset(offset)
             .limit(limit)
         )
@@ -93,7 +101,7 @@ class ChatAccessor(BaseAccessor):
         stmt = (
             select(MessageModel)
             .where(MessageModel.chat_id == chat_id)
-            .order_by(MessageModel.created_at.desc())
+            .order_by(MessageModel.created_at.desc(), MessageModel.id.desc())
             .limit(limit)
         )
         messages = await self.store.pg.scalars_all(stmt)

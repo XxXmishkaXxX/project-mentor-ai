@@ -1,7 +1,5 @@
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 from app.common.sse import parse_sse, sse_event
 from app.rag.accessors.retriever import SearchResult
 from app.rag.manager import RAGManager
@@ -35,9 +33,9 @@ class TestRAGManagerAsk:
         raw = await _collect_raw(rag_manager.ask("test question"))
         parsed = [p for r in raw if (p := parse_sse(r))]
 
-        assert len(parsed) == 1
+        assert len(parsed) == 2
         assert parsed[0][0] == "error"
-        assert sse_event("done", "") in raw
+        assert parsed[1][0] == "done"
 
     async def test_retriever_failure_yields_error(
         self,

@@ -10,6 +10,7 @@ WHITELIST_PATHS: frozenset[str] = frozenset(
     {
         "/api/auth/login",
         "/api/auth/register",
+        "/api/auth/logout",
         "/api/health",
     }
 )

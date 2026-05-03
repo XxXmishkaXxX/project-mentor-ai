@@ -101,4 +101,5 @@ class TestLogout:
 
     async def test_unauthorized(self, client: AsyncTestClient):
         resp = await client.post("/api/auth/logout")
-        assert resp.status_code == 401
+        assert resp.status_code == 201
+        assert resp.json() == {"detail": "Logged out"}

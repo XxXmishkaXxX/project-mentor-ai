@@ -1,11 +1,10 @@
-from litestar import Response, post
+from litestar import Request, Response, post
 from litestar.datastructures import Cookie
 
 from app.auth.domain.schemas import LoginRequest, RegisterRequest
 from app.base.view import BaseView
 from app.common.config import StaticConfig
 from app.users.domain.schemas import UserResponse
-from app.web.request import AppRequest
 
 
 class AuthView(BaseView):
@@ -26,14 +25,18 @@ class AuthView(BaseView):
                     value=session_id,
                     httponly=True,
                     samesite="lax",
+                    secure=True,
                     path="/",
+                    max_age=StaticConfig.SESSION_TTL_HOURS * 3600,
                 ),
             ],
         )
 
     @post("/logout")
-    async def logout(self, request: AppRequest) -> Response[dict]:
-        await self.store.auth_manager.logout(request.session_id)
+    async def logout(self, request: Request) -> Response[dict]:
+        session_id = request.cookies.get(StaticConfig.SESSION_COOKIE_NAME)
+        if session_id:
+            await self.store.auth_manager.logout(session_id)
         return Response(
             content={"detail": "Logged out"},
             cookies=[
@@ -42,6 +45,7 @@ class AuthView(BaseView):
                     value="",
                     httponly=True,
                     samesite="lax",
+                    secure=True,
                     path="/",
                     max_age=0,
                 ),

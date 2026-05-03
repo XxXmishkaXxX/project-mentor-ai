@@ -58,6 +58,16 @@ def split_into_chunks(
     file_name: str = "",
 ) -> list[Chunk]:
     """Split text into overlapping chunks by sentences/paragraphs."""
+    if chunk_size <= 0:
+        msg = f"chunk_size must be positive, got {chunk_size}"
+        raise ValueError(msg)
+    if overlap < 0:
+        msg = f"overlap must be non-negative, got {overlap}"
+        raise ValueError(msg)
+    if overlap >= chunk_size:
+        msg = f"overlap ({overlap}) must be less than chunk_size ({chunk_size})"
+        raise ValueError(msg)
+
     sentences = _split_sentences(text)
     if not sentences:
         return []

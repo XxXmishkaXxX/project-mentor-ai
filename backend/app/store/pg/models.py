@@ -8,8 +8,6 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from app.common.config import StaticConfig
 
-DATETIME_DEFAULT = text("CURRENT_TIMESTAMP")
-
 uuid_pk = Annotated[
     uuid.UUID,
     mapped_column(

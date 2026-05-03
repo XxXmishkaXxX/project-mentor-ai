@@ -10,7 +10,7 @@ from app.chat.domain.schemas import (
     MessageListResponse,
     MessageResponse,
 )
-from app.chat.exceptions import ChatAccessDeniedError, ChatNotFoundError
+from app.chat.exceptions import ChatNotFoundError
 from app.common.sse import parse_sse, sse_event
 
 MAX_TITLE_LENGTH = 100
@@ -41,10 +41,8 @@ class ChatManager(BaseManager):
         user_id: uuid.UUID,
     ) -> ChatModel:
         chat = await self.store.chat_accessor.get_chat_by_id(chat_id)
-        if chat is None:
+        if chat is None or chat.user_id != user_id:
             raise ChatNotFoundError()
-        if chat.user_id != user_id:
-            raise ChatAccessDeniedError()
         return chat
 
     async def create_chat(self, user_id: uuid.UUID) -> ChatResponse:
@@ -117,7 +115,7 @@ class ChatManager(BaseManager):
             limit=HISTORY_WINDOW,
         )
         chat_history = [
-            {"role": m.role, "content": m.content} for m in history_msgs
+            {"role": m.role, "content": m.content} for m in history_msgs[:-1]
         ]
 
         if not self.store.is_rag_available:
@@ -130,6 +128,7 @@ class ChatManager(BaseManager):
 
         full_answer: list[str] = []
         sources_data: list[dict] | None = None
+        has_error = False
 
         async for event in self.store.rag_manager.ask(
             content,
@@ -144,14 +143,16 @@ class ChatManager(BaseManager):
             event_type, data = parsed
             if event_type == "token":
                 full_answer.append(data)
+            elif event_type == "error":
+                has_error = True
             elif event_type == "sources":
                 try:
                     sources_data = json.loads(data)
                 except json.JSONDecodeError:
-                    pass
+                    self.logger.warning("failed to parse sources JSON")
 
         assistant_content = "".join(full_answer)
-        if assistant_content:
+        if assistant_content and not has_error:
             try:
                 await self.store.chat_accessor.add_message(
                     chat_id=chat_id,

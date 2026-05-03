@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.chat.exceptions import ChatAccessDeniedError, ChatNotFoundError
+from app.chat.exceptions import ChatNotFoundError
 from app.chat.manager import ChatManager
 from app.common.sse import parse_sse, sse_event
 
@@ -39,7 +39,7 @@ class TestGetOwnChat:
         with pytest.raises(ChatNotFoundError):
             await chat_manager._get_own_chat(uuid.uuid4(), uuid.uuid4())
 
-    async def test_access_denied(
+    async def test_access_denied_returns_not_found(
         self,
         chat_manager: ChatManager,
         mock_store: MagicMock,
@@ -52,7 +52,7 @@ class TestGetOwnChat:
             return_value=chat,
         )
 
-        with pytest.raises(ChatAccessDeniedError):
+        with pytest.raises(ChatNotFoundError):
             await chat_manager._get_own_chat(chat.id, other_id)
 
     async def test_success(
