@@ -3,6 +3,7 @@ from litestar.openapi import OpenAPIConfig
 
 from app import global_settings, global_store
 from app.auth.views import AuthView
+from app.chat.views import ChatView
 from app.store.store import Store
 from app.users.views import UserView
 from app.web.errors import (
@@ -35,6 +36,7 @@ def create_app() -> Litestar:
             health_check,
             AuthView,
             UserView,
+            ChatView,
         ],
         request_class=AppRequest,
         middleware=[SessionMiddleware],

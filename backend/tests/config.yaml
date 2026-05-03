@@ -1,0 +1,30 @@
+app:
+  secret_key: "test-secret-key"
+  session_ttl_hours: 24
+
+store:
+  database:
+    host: localhost
+    port: 5432
+    name: mentor_ai_test
+    user: postgres
+    password: postgres
+  cache:
+    host: localhost
+    port: 6379
+
+qdrant:
+  host: localhost
+  port: 6333
+
+qwen:
+  api_key: "test-key"
+  api_base_url: "http://fake-qwen:8000"
+  model: "qwen-test"
+  embedding_model: "qwen-embedding-test"
+
+rag:
+  top_k: 3
+  score_threshold: 0.5
+  chunk_size: 256
+  chunk_overlap: 32

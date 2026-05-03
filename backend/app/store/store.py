@@ -49,8 +49,14 @@ class Store:
                 "skipping RAG accessors",
             )
 
+        from app.chat.accessor import ChatAccessor
+        from app.chat.manager import ChatManager
+
+        self.chat_accessor = ChatAccessor(self)
+
         self.user_manager = UserManager(self)
         self.auth_manager = AuthManager(self)
+        self.chat_manager = ChatManager(self)
 
     @property
     def is_rag_available(self) -> bool:

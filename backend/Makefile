@@ -1,4 +1,4 @@
-.PHONY: mypy lint fix style api upgrade downgrade revision
+.PHONY: mypy lint fix style api upgrade downgrade revision test test-unit test-integration test-cov
 
 package?=app tests
 
@@ -29,5 +29,15 @@ downgrade:
 revision:
 	python -m app migrate revision --autogenerate -m $(call args,autogen)
 
+test:
+	python -m pytest tests/ -v
 
+test-unit:
+	python -m pytest tests/unit/ -v
+
+test-integration:
+	python -m pytest tests/integration/ -v
+
+test-cov:
+	python -m pytest tests/ -v --cov=app --cov-report=term-missing
 
