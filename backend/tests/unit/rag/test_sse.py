@@ -25,10 +25,10 @@ class TestParseSse:
         raw = "event: token\n\n"
         assert parse_sse(raw) is None
 
-    def test_empty_data_returns_none(self):
-        """Empty data after strip() loses trailing space → unparseable."""
+    def test_empty_data_parsed(self):
+        """Empty data line is valid SSE — returns empty string."""
         raw = "event: done\ndata: \n\n"
-        assert parse_sse(raw) is None
+        assert parse_sse(raw) == ("done", "")
 
     def test_roundtrip(self):
         original_event = "sources"
