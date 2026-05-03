@@ -12,15 +12,19 @@
         <p>Добро пожаловать! Войдите в свой аккаунт</p>
       </div>
 
+      <div v-if="successMessage" class="success-message">{{ successMessage }}</div>
+
       <form class="auth-form" @submit.prevent="handleSubmit">
         <div class="form-group">
           <label for="email">Email</label>
           <input
             id="email"
+            ref="emailInput"
             v-model="form.email"
             type="email"
             placeholder="you@example.com"
             :class="{ 'input-error': errors.email }"
+            @blur="validateField('email')"
           >
           <span v-if="errors.email" class="field-error">{{ errors.email }}</span>
         </div>
@@ -34,6 +38,7 @@
               :type="showPassword ? 'text' : 'password'"
               placeholder="Введите пароль"
               :class="{ 'input-error': errors.password }"
+              @blur="validateField('password')"
             >
             <button
               type="button"
@@ -75,16 +80,19 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, computed, onMounted, nextTick } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 
+const emailInput = ref(null)
 const form = reactive({ email: '', password: '' })
 const errors = reactive({ email: '', password: '' })
 const apiError = ref('')
+const successMessage = ref('')
 const showPassword = ref(false)
 const rememberMe = ref(false)
 
@@ -94,29 +102,38 @@ const isFormValid = computed(() =>
   form.email && form.password && emailRegex.test(form.email)
 )
 
+onMounted(async () => {
+  if (route.query.registered) {
+    successMessage.value = 'Регистрация успешна! Войдите в аккаунт'
+  }
+  await nextTick()
+  emailInput.value?.focus()
+})
+
+function validateField(field) {
+  if (field === 'email') {
+    if (!form.email) {
+      errors.email = 'Введите email'
+    } else if (!emailRegex.test(form.email)) {
+      errors.email = 'Некорректный формат email'
+    } else {
+      errors.email = ''
+    }
+  }
+  if (field === 'password') {
+    errors.password = form.password ? '' : 'Введите пароль'
+  }
+}
+
 function validate() {
-  errors.email = ''
-  errors.password = ''
-  let valid = true
-
-  if (!form.email) {
-    errors.email = 'Введите email'
-    valid = false
-  } else if (!emailRegex.test(form.email)) {
-    errors.email = 'Некорректный формат email'
-    valid = false
-  }
-
-  if (!form.password) {
-    errors.password = 'Введите пароль'
-    valid = false
-  }
-
-  return valid
+  validateField('email')
+  validateField('password')
+  return !errors.email && !errors.password
 }
 
 async function handleSubmit() {
   apiError.value = ''
+  successMessage.value = ''
   if (!validate()) return
 
   try {
@@ -124,7 +141,7 @@ async function handleSubmit() {
     router.push('/chat')
   } catch (err) {
     if (err.status === 401) {
-      apiError.value = 'Неверный email или пароль'
+      apiError.value = err.data?.detail || 'Неверный email или пароль'
     } else if (err.status === 422 && err.data?.extra) {
       for (const e of err.data.extra) {
         if (e.key === 'email') errors.email = e.message
@@ -237,6 +254,18 @@ async function handleSubmit() {
   font-size: 13px;
   text-align: center;
   margin-bottom: 12px;
+  animation: fadeInUp var(--transition-slow) ease;
+}
+
+.success-message {
+  color: var(--color-accent-green);
+  font-size: 13px;
+  text-align: center;
+  margin-bottom: 16px;
+  padding: 10px 16px;
+  background: rgba(0, 214, 143, 0.1);
+  border: 1px solid rgba(0, 214, 143, 0.25);
+  border-radius: var(--radius-md);
   animation: fadeInUp var(--transition-slow) ease;
 }
 
