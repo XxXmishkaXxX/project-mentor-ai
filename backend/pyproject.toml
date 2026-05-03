@@ -8,6 +8,7 @@ dependencies = [
     "alembic>=1.18.4",
     "asyncache>=0.3.1",
     "asyncpg>=0.31.0",
+    "bcrypt>=4.0.0",
     "cashews[redis]>=7.5.0",
     "click>=8.3.3",
     "litestar[standard]>=2.21.1",
@@ -15,6 +16,7 @@ dependencies = [
     "pydantic[email]>=2.13.3",
     "pytest>=9.0.3",
     "pyyaml>=6.0.3",
+
     "ruff>=0.15.12",
     "sentry-sdk>=2.58.0",
     "sqlalchemy>=2.0.49",

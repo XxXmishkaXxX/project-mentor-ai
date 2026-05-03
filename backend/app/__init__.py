@@ -1,8 +1,12 @@
 import os
 from contextvars import ContextVar
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from app.global_.settings import Settings
+
+if TYPE_CHECKING:
+    from app.store.store import Store
 
 
 def _read_version() -> str:
@@ -21,6 +25,7 @@ class AppInfo:
 
 
 global_settings: ContextVar[Settings] = ContextVar("global_settings")
+global_store: ContextVar["Store"] = ContextVar("global_store")
 app_info = AppInfo(
     name="project-mentor-ai",
     version=_read_version(),
