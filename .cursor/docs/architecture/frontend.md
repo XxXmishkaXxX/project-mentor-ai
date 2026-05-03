@@ -1,5 +1,11 @@
 # Frontend: Vue 3 + Vite
 
+## Дизайн и визуал
+
+- **Тема**: тёмная «космическая» тема с анимированным Canvas-фоном (частицы + линии)
+- **Подробное описание страниц**: [frontend_pages.md](frontend_pages.md) — цвета, компоненты, поведение, API
+- **Референс дизайна**: `20725313-3a41-4e4f-8344-c3863c5c6dd9.png`
+
 ## Стек
 
 - **Vue 3** (Composition API)
@@ -7,6 +13,7 @@
 - **Pinia** — state management
 - **Vue Router** — роутинг с navigation guards
 - **fetch API** — HTTP-клиент (с SSE через ReadableStream)
+- **marked** + **DOMPurify** — рендер Markdown в ответах ассистента
 
 ## Структура
 
