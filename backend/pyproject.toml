@@ -1,0 +1,123 @@
+[project]
+name = "backend"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.18.4",
+    "asyncache>=0.3.1",
+    "asyncpg>=0.31.0",
+    "cashews[redis]>=7.5.0",
+    "click>=8.3.3",
+    "litestar[standard]>=2.21.1",
+    "mypy>=1.20.2",
+    "pydantic[email]>=2.13.3",
+    "pytest>=9.0.3",
+    "pyyaml>=6.0.3",
+    "ruff>=0.15.12",
+    "sentry-sdk>=2.58.0",
+    "sqlalchemy>=2.0.49",
+    "structlog>=25.5.0",
+    "uvloop>=0.22.1",
+]
+
+
+[tool.mypy]
+exclude = [
+    'app/store/pg/migrations',
+]
+
+[[tool.mypy.overrides]]
+module = '*.*'
+ignore_missing_imports = true
+check_untyped_defs = true
+
+[tool.ruff]
+line-length = 80
+indent-width = 4
+output-format = "full"
+target-version = "py312"
+
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "venv",
+    "env",
+    ".env",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "dist",
+    "node_modules",
+]
+
+src = [
+    "app",
+    "tests",
+]
+
+lint.select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "C",  # flake8-comprehensions
+    "B",  # flake8-bugbear
+    "ASYNC",  # flake8-async
+    "S",  # flake8-bandit
+    "BLE",  # flake8-blind-except
+    "A",  # flake8-builtins
+    "COM",  # flake8-commas
+    "C4",  # flake8-comprehensions
+    "DTZ",  # flake8-datetimez
+    "ISC",  # flake8-implicit-str-concat
+    "G",  # flake8-logging-format
+    "PIE",  # flake8-pie
+    "T20",  # flake8-print
+    "Q",  # flake8-quotes
+    "SLF",  # flake8-self
+    "SIM",  # flake8-simplify
+    "ARG",  # flake8-unused-arguments
+    "TC",  # flake8-type-checking
+    "FLY",  # flynt
+]
+lint.ignore = [
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+    "S101",  # use of assert
+    "G004",  # f-string in log messages
+    "SIM105", # suppressible exceptions
+    "COM812",  # выдает warning при форматировании кода
+    "ISC001",   # выдает warning при форматировании кода
+]
+
+extend-exclude = [
+    "app/store/pg/migrations",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "tests"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+env = [
+    "CONFIG = tests/config.yaml"
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::aiohttp.web_exceptions.NotAppKeyWarning",
+]
