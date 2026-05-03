@@ -18,6 +18,7 @@ class Store:
 
         from app.auth.accessor import SessionAccessor
         from app.auth.manager import AuthManager
+        from app.rag.config import is_rag_configured
         from app.store.cache import CacheAccessor
         from app.store.pg.accessor import PgAccessor
         from app.users.accessor import UserAccessor
@@ -29,8 +30,31 @@ class Store:
         self.user_accessor = UserAccessor(self)
         self.session_accessor = SessionAccessor(self)
 
+        self._rag_available = is_rag_configured(settings.config)
+        if self._rag_available:
+            from app.rag.accessors import (
+                EmbedderAccessor,
+                LLMAccessor,
+                RetrieverAccessor,
+            )
+            from app.rag.manager import RAGManager
+
+            self.embedder = EmbedderAccessor(self)
+            self.retriever = RetrieverAccessor(self)
+            self.llm = LLMAccessor(self)
+            self.rag_manager = RAGManager(self)
+        else:
+            self._logger.warning(
+                "RAG not configured — qwen.api_base_url is empty, "
+                "skipping RAG accessors",
+            )
+
         self.user_manager = UserManager(self)
         self.auth_manager = AuthManager(self)
+
+    @property
+    def is_rag_available(self) -> bool:
+        return self._rag_available
 
     @property
     def settings(self) -> "Settings":
