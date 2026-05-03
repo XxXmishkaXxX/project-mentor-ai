@@ -4,7 +4,7 @@
 **Этап**: 1
 **US**: US-03, US-14
 **Зависимости**: BE-104, BE-105, BE-106
-**Статус**: не начата
+**Статус**: выполнена
 
 ## Описание
 
@@ -12,7 +12,7 @@
 
 ## Файлы
 
-- `backend/scripts/seed_knowledge_base.py` — CLI/скрипт: обход файлов, chunk, embed, upsert, PG
+- `backend/app/entrypoints/seed_knowledge_base.py` — CLI-команда: обход файлов, chunk, embed, upsert, PG
 
 ## Реализация
 

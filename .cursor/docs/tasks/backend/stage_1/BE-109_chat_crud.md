@@ -4,7 +4,7 @@
 **Этап**: 1
 **US**: US-01, US-02
 **Зависимости**: BE-103, BE-005
-**Статус**: не начата
+**Статус**: выполнена
 
 ## Описание
 
@@ -12,9 +12,12 @@ REST API для создания, списка, получения и удале
 
 ## Файлы
 
-- `backend/src/app/chat/schemas.py` — `ChatDTO`, `CreateChatDTO`
-- `backend/src/app/chat/service.py` — бизнес-логика чатов
-- `backend/src/app/chat/controller.py` — маршруты `/api/chats`
+- `backend/app/chat/domain/schemas.py` — `ChatResponse`, `SendMessageRequest`
+- `backend/app/chat/accessor.py` — доступ к данным чатов и сообщений
+- `backend/app/chat/manager.py` — бизнес-логика чатов
+- `backend/app/chat/views.py` — маршруты `/api/chats`
+- `backend/app/chat/db.py` — ORM-модели `ChatModel`, `MessageModel`
+- `backend/app/chat/exceptions.py` — HTTP-исключения
 
 ## Реализация
 
