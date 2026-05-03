@@ -1,8 +1,7 @@
-from __future__ import annotations
-
 from typing import TYPE_CHECKING
 
 import click
+import uvicorn
 
 from app.global_.settings import path
 
@@ -33,13 +32,11 @@ if TYPE_CHECKING:
 )
 @click.pass_obj
 def api(
-    settings: Settings,
+    settings: "Settings",
     host: str | None,
     port: int | None,
     workers: int,
 ) -> None:
-    import uvicorn
-
     config = settings.config
     host = host or path(config, "web", "host", default="0.0.0.0")  # noqa: S104
     port = port or path(config, "web", "port", default=8000)
