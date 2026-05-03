@@ -1,0 +1,25 @@
+---
+description: Project context and documentation references for RAG assistant
+alwaysApply: true
+---
+
+# Project Context
+
+This is a RAG-based AI assistant for students (project management mentoring). Always reference project docs before implementing.
+
+## Documentation Structure
+
+- `.cursor/docs/TZ.md` — technical specification
+- `.cursor/docs/architecture/overview.md` — architecture overview with links to detailed docs
+- `.cursor/docs/architecture/` — detailed docs per technology (backend, frontend, database, qdrant, redis, rag_pipeline, api, docker)
+- `.cursor/docs/user_stories/` — user stories organized by module (auth/, chat/, rag/, feedback/, admin/, frontend/)
+- `.cursor/docs/tasks/backend/` — backend tasks by stage (stage_0/ through stage_3/)
+- `.cursor/docs/tasks/frontend/` — frontend tasks by stage (stage_0/ through stage_3/)
+- `.cursor/docs/analitika_rag_assistent_gost.md` — analytical document (academic)
+
+## Before Implementing
+
+1. Read the relevant task file from `.cursor/docs/tasks/` to understand requirements, files to create/modify, and acceptance criteria
+2. Read the relevant user story from `.cursor/docs/user_stories/` for context on user value
+3. Check architecture docs for technical decisions (DB schema, API contracts, etc.)
+4. Update task status in the task file when starting and completing work

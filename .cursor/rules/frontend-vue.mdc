@@ -1,0 +1,36 @@
+---
+description: Vue 3 frontend conventions
+globs: frontend/**/*.{vue,js}
+alwaysApply: false
+---
+
+# Frontend Conventions
+
+## Stack
+
+- Vue 3 (Composition API with `<script setup>`)
+- Vite, Pinia, Vue Router
+- fetch API for HTTP (credentials: 'include' for cookies)
+- SSE via fetch + ReadableStream (not EventSource, because POST is needed)
+
+## Structure
+
+- `pages/` — route-level components (LoginPage, ChatPage, AdminPage)
+- `components/` — reusable UI components
+- `stores/` — Pinia stores (auth, chat, admin)
+- `api/` — HTTP client functions grouped by domain
+- `router/` — Vue Router with navigation guards
+
+## Patterns
+
+- Use `<script setup>` syntax in all components
+- Use Pinia stores for shared state, not props drilling
+- API calls live in `api/*.js`, not in components or stores directly
+- Handle loading/error states in stores (`isLoading`, `error`)
+- Use `credentials: 'include'` on all fetch calls (session cookies)
+
+## Naming
+
+- Components: PascalCase files (`ChatSidebar.vue`)
+- Stores/API: camelCase files (`auth.js`, `chat.js`)
+- CSS: scoped styles in components, global styles in `assets/styles/`

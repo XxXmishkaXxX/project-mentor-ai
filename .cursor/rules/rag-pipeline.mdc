@@ -1,0 +1,25 @@
+---
+description: RAG pipeline implementation guidelines
+globs: backend/src/app/rag/**/*.py
+alwaysApply: false
+---
+
+# RAG Pipeline
+
+## Architecture
+
+Custom implementation (no LangChain/LlamaIndex). Five modules in `backend/src/app/rag/`:
+
+- `chunker.py` — parse files (PDF/DOCX/MD), split into chunks (800 tokens, 100 overlap)
+- `embedder.py` — Qwen Embedding API via httpx
+- `retriever.py` — Qdrant search (top_k=5, score_threshold=0.7)
+- `llm.py` — Qwen 3.6 API streaming via httpx (OpenAI-compatible)
+- `pipeline.py` — orchestration: embed -> search -> prompt -> stream
+
+## Key Rules
+
+- Always check relevance scores: if all chunks score below `RAG_SCORE_THRESHOLD`, return "no data" message
+- System prompt must instruct LLM to answer only from provided context and cite sources
+- Stream tokens via SSE with events: `token`, `sources`, `done`
+- All external API calls (Qwen, Qdrant) must have timeout and error handling
+- Use config values from Settings, never hardcode thresholds or model names

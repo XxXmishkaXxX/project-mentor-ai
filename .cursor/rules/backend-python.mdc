@@ -1,0 +1,36 @@
+---
+description: Python backend conventions for Litestar + SQLAlchemy
+globs: backend/**/*.py
+alwaysApply: false
+---
+
+# Backend Conventions
+
+## Stack
+
+- Python 3.12, Litestar (async), SQLAlchemy 2.0 (async) + Alembic, Redis, Qdrant, httpx
+- Config via Pydantic Settings (env vars)
+- Auth via Redis sessions (cookie-based, HttpOnly)
+
+## Module Structure
+
+Each module (auth, chat, feedback, admin) has:
+- `controller.py` — route handlers (thin layer, delegate to service)
+- `schemas.py` — Pydantic DTOs for request/response
+- `service.py` — business logic, DB queries, external calls
+
+## Patterns
+
+- Use `async def` for all handlers and service methods
+- Use SQLAlchemy `async_sessionmaker` for DB access
+- Type hints everywhere: function args, return types, variables where not obvious
+- Raise Litestar HTTP exceptions (e.g. `NotFoundException`, `NotAuthorizedException`)
+- Return Pydantic DTOs from controllers, not raw dicts
+- Keep controllers thin: validation + delegation to service + response formatting
+
+## Naming
+
+- Files: snake_case (`chat_service.py`)
+- Classes: PascalCase (`ChatService`, `MessageDTO`)
+- Functions/methods: snake_case (`create_chat`, `get_messages`)
+- Constants: UPPER_SNAKE_CASE (`RAG_TOP_K`)
