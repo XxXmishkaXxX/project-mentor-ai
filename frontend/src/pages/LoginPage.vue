@@ -147,8 +147,11 @@ async function handleSubmit() {
         if (e.key === 'email') errors.email = e.message
         if (e.key === 'password') errors.password = e.message
       }
+      if (!errors.email && !errors.password) {
+        apiError.value = err.data?.detail || 'Ошибка валидации'
+      }
     } else {
-      apiError.value = 'Ошибка сети. Проверьте подключение'
+      apiError.value = err.data?.detail || 'Ошибка сети. Проверьте подключение'
     }
   }
 }

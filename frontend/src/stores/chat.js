@@ -111,16 +111,8 @@ export const useChatStore = defineStore('chat', () => {
           assistantMessage.content += data
         } else if (eventType === 'sources') {
           try {
-            const parsed = JSON.parse(data)
-            assistantMessage.sources = Array.isArray(parsed) ? parsed : parsed.sources || []
+            assistantMessage.sources = JSON.parse(data)
           } catch { /* skip malformed sources */ }
-        } else if (eventType === 'done') {
-          if (data) {
-            try {
-              const parsed = JSON.parse(data)
-              if (parsed.message_id) assistantMessage.id = parsed.message_id
-            } catch { /* done without JSON payload */ }
-          }
         } else if (eventType === 'error' || eventType === 'no_data') {
           assistantMessage.content += data || ''
         }
@@ -150,7 +142,8 @@ export const useChatStore = defineStore('chat', () => {
           }
 
           if (trimmed.startsWith('data:')) {
-            dataLines.push(trimmed.slice(5).trimStart())
+            const raw = trimmed.slice(5)
+            dataLines.push(raw.startsWith(' ') ? raw.slice(1) : raw)
           }
         }
       }

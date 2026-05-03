@@ -195,11 +195,18 @@ async function handleSubmit() {
     if (err.status === 409) {
       apiError.value = err.data?.detail || 'Пользователь с таким email или именем уже существует'
     } else if (err.status === 422 && err.data?.extra) {
+      let hasFieldError = false
       for (const e of err.data.extra) {
-        if (errors[e.key] !== undefined) errors[e.key] = e.message
+        if (errors[e.key] !== undefined) {
+          errors[e.key] = e.message
+          hasFieldError = true
+        }
+      }
+      if (!hasFieldError) {
+        apiError.value = err.data?.detail || 'Ошибка валидации'
       }
     } else {
-      apiError.value = 'Ошибка сети. Проверьте подключение'
+      apiError.value = err.data?.detail || 'Ошибка сети. Проверьте подключение'
     }
   }
 }

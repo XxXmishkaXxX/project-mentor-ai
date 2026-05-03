@@ -49,6 +49,11 @@ const showWelcome = computed(() => {
   return chatStore.messages.length === 0 && !chatStore.isLoadingMessages
 })
 
+function handleAuthError() {
+  authStore.user = null
+  router.push('/login')
+}
+
 watch(
   () => route.params.id,
   async (newId) => {
@@ -57,7 +62,9 @@ watch(
       try {
         await chatStore.selectChat(newId)
       } catch (err) {
-        if (err.status === 404) {
+        if (err.status === 401) {
+          handleAuthError()
+        } else if (err.status === 404) {
           router.replace('/chat')
         }
       }
@@ -68,16 +75,20 @@ watch(
 )
 
 async function handleSend(content) {
-  let chatId = chatStore.currentChatId
+  try {
+    let chatId = chatStore.currentChatId
 
-  if (!chatId) {
-    const chat = await chatStore.createChat()
-    chatId = chat.id
-    router.replace(`/chat/${chatId}`)
+    if (!chatId) {
+      const chat = await chatStore.createChat()
+      chatId = chat.id
+      router.replace(`/chat/${chatId}`)
+    }
+
+    await chatStore.sendMessage(content)
+    await chatStore.fetchChats()
+  } catch (err) {
+    if (err.status === 401) handleAuthError()
   }
-
-  await chatStore.sendMessage(content)
-  await chatStore.fetchChats()
 }
 
 async function handleExampleClick(question) {
@@ -109,12 +120,18 @@ function handleFeedback(event) {
 }
 
 onMounted(async () => {
-  await chatStore.fetchChats()
+  try {
+    await chatStore.fetchChats()
+  } catch (err) {
+    if (err.status === 401) return handleAuthError()
+  }
   if (route.params.id) {
     try {
       await chatStore.selectChat(route.params.id)
     } catch (err) {
-      if (err.status === 404) {
+      if (err.status === 401) {
+        handleAuthError()
+      } else if (err.status === 404) {
         router.replace('/chat')
       }
     }
