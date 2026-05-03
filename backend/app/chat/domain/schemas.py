@@ -1,11 +1,8 @@
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
-
-
-class CreateChatRequest(BaseModel):
-    pass
 
 
 class ChatResponse(BaseModel):
@@ -21,7 +18,7 @@ class SendMessageRequest(BaseModel):
 
 class MessageResponse(BaseModel):
     id: uuid.UUID
-    role: str
+    role: Literal["user", "assistant", "system"]
     content: str
     sources: list[dict] | None = None
     created_at: datetime

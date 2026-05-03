@@ -7,6 +7,8 @@ from app.auth.exceptions import InvalidCredentialsError
 from app.base.manager import BaseManager
 from app.users.domain.schemas import UserResponse
 
+_DUMMY_HASH = bcrypt.hashpw(b"dummy", bcrypt.gensalt()).decode()
+
 
 class AuthManager(BaseManager):
     @staticmethod
@@ -18,16 +20,19 @@ class AuthManager(BaseManager):
 
     @staticmethod
     def verify_password(password: str, password_hash: str) -> bool:
-        return bcrypt.checkpw(
-            password.encode(),
-            password_hash.encode(),
-        )
+        try:
+            return bcrypt.checkpw(
+                password.encode(),
+                password_hash.encode(),
+            )
+        except (ValueError, TypeError):
+            return False
 
     async def register(self, data: RegisterRequest) -> UserResponse:
         password_hash = self.hash_password(data.password)
         user = await self.store.user_accessor.create_user(
             username=data.username,
-            email=data.email,
+            email=str(data.email).lower().strip(),
             password_hash=password_hash,
         )
         return self.store.user_manager.to_response(user)
@@ -36,11 +41,11 @@ class AuthManager(BaseManager):
         self,
         data: LoginRequest,
     ) -> tuple[str, UserResponse]:
-        user = await self.store.user_accessor.get_by_email(data.email)
-        if user is None or not self.verify_password(
-            data.password,
-            user.password_hash,
-        ):
+        email = str(data.email).lower().strip()
+        user = await self.store.user_accessor.get_by_email(email)
+        password_hash = user.password_hash if user else _DUMMY_HASH
+        valid = self.verify_password(data.password, password_hash)
+        if user is None or not valid:
             raise InvalidCredentialsError()
 
         session_id = secrets.token_urlsafe(32)

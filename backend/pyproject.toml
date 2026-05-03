@@ -40,6 +40,7 @@ dev = [
 [tool.mypy]
 exclude = [
     'app/store/pg/migrations',
+    'scripts',
 ]
 
 [[tool.mypy.overrides]]

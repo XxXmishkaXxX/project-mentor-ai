@@ -1,4 +1,4 @@
-.PHONY: mypy lint fix style api upgrade downgrade revision test test-unit test-integration test-cov
+.PHONY: mypy lint fix style api seed upgrade downgrade revision test test-unit test-integration test-cov
 
 package?=app tests
 
@@ -19,6 +19,9 @@ style:
 
 api:
 	python -m app api
+
+seed:
+	python -m app seed_knowledge_base
 
 upgrade:
 	python -m app migrate upgrade head

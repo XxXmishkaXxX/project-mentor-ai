@@ -46,6 +46,10 @@ class RetrieverAccessor(BaseAccessor):
             port=config.port,
         )
 
+    @property
+    def client(self) -> AsyncQdrantClient:
+        return self._client
+
     async def disconnect(self) -> None:
         if hasattr(self, "_client"):
             await self._client.close()

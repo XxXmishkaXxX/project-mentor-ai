@@ -55,7 +55,7 @@ class ChatView(BaseView):
         self,
         request: AppRequest,
         chat_id: uuid.UUID,
-        offset: int = Parameter(default=0, ge=0),
+        offset: int = Parameter(default=0, ge=0, le=10000),
         limit: int = Parameter(default=50, ge=1, le=100),
     ) -> MessageListResponse:
         return await self.store.chat_manager.get_messages(

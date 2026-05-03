@@ -19,12 +19,17 @@ class EmbedderAccessor(BaseHttpAccessor):
 
     async def embed_text(self, text: str) -> list[float]:
         data = await self._embed_request([text])
+        if not data:
+            msg = "Embedding API returned empty data"
+            raise ValueError(msg)
         return data[0]
 
     async def embed_batch(
         self,
         texts: list[str],
     ) -> list[list[float]]:
+        if not texts:
+            return []
         batch_size = StaticConfig.EMBEDDING_MAX_BATCH_SIZE
         if len(texts) <= batch_size:
             return await self._embed_request(texts)
@@ -44,7 +49,10 @@ class EmbedderAccessor(BaseHttpAccessor):
             "input": texts,
         }
         body = await self._request_json("POST", "/embeddings", json=payload)
+        items = body.get("data")
+        if not items:
+            return []
         return [
             item["embedding"]
-            for item in sorted(body["data"], key=lambda x: x["index"])
+            for item in sorted(items, key=lambda x: x["index"])
         ]

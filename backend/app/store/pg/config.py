@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from urllib.parse import quote_plus
 
 from app.global_.settings import path
 
@@ -13,8 +14,10 @@ class DatabaseConfig:
 
     @property
     def url(self) -> str:
+        user = quote_plus(self.user)
+        password = quote_plus(self.password)
         return (
-            f"postgresql+asyncpg://{self.user}:{self.password}"
+            f"postgresql+asyncpg://{user}:{password}"
             f"@{self.host}:{self.port}/{self.name}"
         )
 

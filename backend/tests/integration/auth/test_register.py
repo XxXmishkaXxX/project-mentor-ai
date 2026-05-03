@@ -7,7 +7,6 @@ from tests.constants import (
     OTHER_EMAIL,
     OTHER_USERNAME,
 )
-from tests.integration.conftest import create_user_in_db
 
 REGISTER_URL = "/api/auth/register"
 

@@ -1,5 +1,4 @@
 import pytest
-from litestar.testing import AsyncTestClient
 
 from app.store.store import Store
 from tests.constants import DEFAULT_EMAIL, DEFAULT_PASSWORD, DEFAULT_USERNAME

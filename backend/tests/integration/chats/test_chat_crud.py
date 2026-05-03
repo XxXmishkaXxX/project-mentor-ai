@@ -94,7 +94,7 @@ class TestGetChat:
         )
         client.cookies.set("session_id", session_id)
         resp = await client.get(f"{CHATS_URL}{chat.id}")
-        assert resp.status_code == 403
+        assert resp.status_code == 404
         client.cookies.clear()
 
 
@@ -128,5 +128,5 @@ class TestDeleteChat:
         )
         client.cookies.set("session_id", session_id)
         resp = await client.delete(f"{CHATS_URL}{chat.id}")
-        assert resp.status_code == 403
+        assert resp.status_code == 404
         client.cookies.clear()
